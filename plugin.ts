@@ -842,6 +842,71 @@ async function sendFileMessage(
 }
 
 /**
+ * 获取 ffprobe 可执行文件路径
+ * 优先级: @ffprobe-installer/ffprobe > FFPROBE_PATH 环境变量 > 系统 PATH
+ */
+function getFfprobePath(): string {
+  // 1. 尝试 @ffprobe-installer/ffprobe 包
+  try {
+    const ffprobePath = require('@ffprobe-installer/ffprobe').path;
+    if (ffprobePath) return ffprobePath;
+  } catch { /* 未安装，跳过 */ }
+
+  // 2. 尝试环境变量
+  if (process.env.FFPROBE_PATH) return process.env.FFPROBE_PATH;
+
+  // 3. fallback 到系统 PATH
+  return 'ffprobe';
+}
+
+/**
+ * 提取音频文件时长（毫秒）
+ * 使用 ffprobe CLI 直接获取，避免 fluent-ffmpeg 在部分运行环境中回调不触发的问题
+ */
+async function extractAudioDuration(
+  filePath: string,
+  log?: any,
+): Promise<number | null> {
+  try {
+    const { execFile } = require('child_process');
+    const ffprobeBin = getFfprobePath();
+
+    return new Promise((resolve) => {
+      execFile(ffprobeBin, [
+        '-v', 'quiet',
+        '-print_format', 'json',
+        '-show_format',
+        filePath,
+      ], { timeout: 10_000 }, (err: any, stdout: string, stderr: string) => {
+        if (err) {
+          log?.error?.(`[DingTalk][Audio] ffprobe 执行失败 (${ffprobeBin}): ${err.message}`);
+          return resolve(null);
+        }
+
+        try {
+          const parsed = JSON.parse(stdout);
+          const durationSec = parseFloat(parsed?.format?.duration);
+          if (isNaN(durationSec)) {
+            log?.warn?.(`[DingTalk][Audio] 无法解析音频时长，ffprobe 输出: ${stdout.slice(0, 200)}`);
+            return resolve(null);
+          }
+
+          const durationMs = Math.floor(durationSec * 1000);
+          log?.info?.(`[DingTalk][Audio] 音频时长: ${durationMs}ms (${durationSec}s)`);
+          resolve(durationMs);
+        } catch (parseErr: any) {
+          log?.error?.(`[DingTalk][Audio] ffprobe 输出解析失败: ${parseErr.message}`);
+          resolve(null);
+        }
+      });
+    });
+  } catch (err: any) {
+    log?.error?.(`[DingTalk][Audio] extractAudioDuration 异常: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * 发送音频消息到钉钉（被动回复场景）
  */
 async function sendAudioMessage(
@@ -851,14 +916,16 @@ async function sendAudioMessage(
   mediaId: string,
   oapiToken: string,
   log?: any,
+  durationMs?: number,
 ): Promise<void> {
   try {
     // 钉钉语音消息格式
+    const actualDuration = (durationMs && durationMs > 0) ? durationMs.toString() : '60000';
     const audioMessage = {
       msgtype: 'voice',
       voice: {
         mediaId: mediaId,
-        duration: '60000',  // 默认时长，单位毫秒
+        duration: actualDuration,
       },
     };
 
@@ -936,12 +1003,14 @@ async function processFileMarkers(
       // 音频文件使用 voice 类型上传
       const mediaId = await uploadMediaToDingTalk(fileInfo.path, 'voice', oapiToken, MAX_FILE_SIZE, log);
       if (mediaId) {
+        // 提取音频实际时长
+        const audioDurationMs = await extractAudioDuration(fileInfo.path, log);
         if (useProactiveApi && target) {
           // 使用主动消息 API（适用于 AI Card 场景）
-          await sendAudioProactive(config, target, fileInfo, mediaId, log);
+          await sendAudioProactive(config, target, fileInfo, mediaId, log, audioDurationMs ?? undefined);
         } else {
           // 使用 sessionWebhook（传统被动回复场景）
-          await sendAudioMessage(config, sessionWebhook, fileInfo, mediaId, oapiToken, log);
+          await sendAudioMessage(config, sessionWebhook, fileInfo, mediaId, oapiToken, log, audioDurationMs ?? undefined);
         }
         statusMessages.push(`✅ 音频已发送: ${fileInfo.fileName}`);
       } else {
@@ -1626,14 +1695,16 @@ async function sendAudioProactive(
   fileInfo: FileInfo,
   mediaId: string,
   log?: any,
+  durationMs?: number,
 ): Promise<void> {
   try {
     const token = await getAccessToken(config);
 
     // 钉钉普通消息 API 的音频消息格式
+    const actualDuration = (durationMs && durationMs > 0) ? durationMs.toString() : '60000';
     const msgParam = {
       mediaId: mediaId,
-      duration: '60000',  // 默认时长，单位毫秒
+      duration: actualDuration,
     };
 
     const body: any = {
@@ -1806,11 +1877,14 @@ async function processAudioMarkers(
         continue;
       }
 
+      // 提取音频实际时长
+      const audioDurationMs = await extractAudioDuration(audioInfo.path, log);
+
       // 发送音频消息
       if (useProactiveApi && target) {
-        await sendAudioProactive(config, target, fileInfo, mediaId, log);
+        await sendAudioProactive(config, target, fileInfo, mediaId, log, audioDurationMs ?? undefined);
       } else {
-        await sendAudioMessage(config, sessionWebhook, fileInfo, mediaId, oapiToken, log);
+        await sendAudioMessage(config, sessionWebhook, fileInfo, mediaId, oapiToken, log, audioDurationMs ?? undefined);
       }
       statusMessages.push(`✅ 音频已发送: ${fileName}`);
       log?.info?.(`${logPrefix} 音频处理完成: ${fileName}`);
