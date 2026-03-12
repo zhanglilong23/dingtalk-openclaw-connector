@@ -3532,15 +3532,15 @@ const dingtalkPlugin = {
           ctx.log?.info?.(`[DingTalk] 已立即确认回调: messageId=${messageId}`);
         }
 
-        // 【消息去重】检查是否已处理过该消息
-        if (messageId && isMessageProcessed(messageId)) {
-          ctx.log?.warn?.(`[DingTalk] 检测到重复消息，跳过处理: messageId=${messageId}`);
+        // 【消息去重】检查是否已处理过该消息（按账号维度隔离）
+        if (messageId && isMessageProcessed(account.accountId, messageId)) {
+          ctx.log?.warn?.(`[DingTalk][${account.accountId}] 检测到重复消息，跳过处理: messageId=${messageId}`);
           return;
         }
 
-        // 标记消息为已处理
+        // 标记消息为已处理（按账号维度隔离）
         if (messageId) {
-          markMessageProcessed(messageId);
+          markMessageProcessed(account.accountId, messageId);
         }
 
         // 异步处理消息（不阻塞回调确认）
