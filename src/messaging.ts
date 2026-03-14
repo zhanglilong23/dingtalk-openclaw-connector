@@ -762,13 +762,10 @@ export async function sendMediaToDingTalk(params: {
       // 构建视频标记
       const videoMarker = `[DINGTALK_VIDEO]{"path":"${mediaUrl}"}[/DINGTALK_VIDEO]`;
       
-      // 发送包含视频标记的文本消息
-      let content = text ? `${text}\n\n${videoMarker}` : videoMarker;
-      
-      // 处理视频标记（提取元数据、生成封面、上传、发送视频消息）
+      // 直接处理视频标记（上传并发送视频消息）
       const { processVideoMarkers } = await import('./media.js');
-      content = await processVideoMarkers(
-        content,
+      await processVideoMarkers(
+        videoMarker,  // 只传入标记，不包含原始文本
         '',
         config,
         oapiToken,
@@ -777,17 +774,25 @@ export async function sendMediaToDingTalk(params: {
         targetParam
       );
       
-      // 发送处理后的内容（包含状态消息）
-      const result = await sendProactive(
-        config,
-        targetParam,
-        content,
-        { msgType: 'text', replyToId }
-      );
+      // 如果有原始文本，单独发送
+      if (text?.trim()) {
+        const result = await sendProactive(
+          config,
+          targetParam,
+          text,
+          { msgType: 'text', replyToId }
+        );
+        return {
+          ...result,
+          processQueryKey: result.processQueryKey || 'video-text-sent',
+        };
+      }
       
+      // 视频已发送，返回成功
       return {
-        ...result,
-        processQueryKey: result.processQueryKey || 'video-message-sent',
+        ok: true,
+        usedAICard: false,
+        processQueryKey: 'video-message-sent',
       };
     }
     

@@ -221,7 +221,7 @@ export async function extractVideoMetadata(
           return;
         }
         try {
-          const duration = metadata.format?.duration ? Math.round(parseFloat(metadata.format.duration) * 1000) : 0;
+          const duration = metadata.format?.duration ? Math.floor(parseFloat(metadata.format.duration)) : 0;
           const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video');
           const width = videoStream?.width || 0;
           const height = videoStream?.height || 0;
@@ -298,6 +298,9 @@ export async function processVideoMarkers(
   const matches = [...content.matchAll(VIDEO_MARKER_PATTERN)];
   const videoInfos: VideoInfo[] = [];
   const invalidVideos: string[] = [];
+  
+  // 导入需要的模块
+  const os = await import('os');
 
   for (const match of matches) {
     try {
@@ -334,28 +337,79 @@ export async function processVideoMarkers(
 
   for (const videoInfo of videoInfos) {
     const fileName = path.basename(videoInfo.path);
+    let thumbnailPath = '';
     try {
-      // 上传视频到钉钉
-      const mediaId = await uploadMediaToDingTalk(videoInfo.path, 'video', oapiToken, 20 * 1024 * 1024, log);
-      if (!mediaId) {
-        statusMessages.push(`⚠️ 视频上传失败: ${fileName}（文件可能超过 20MB 限制）`);
+      // 1. 提取视频元数据
+      const metadata = await extractVideoMetadata(videoInfo.path, log);
+      if (!metadata) {
+        log?.warn?.(`${logPrefix} 无法提取元数据: ${videoInfo.path}`);
+        statusMessages.push(`⚠️ 视频处理失败: ${fileName}（无法读取视频信息）`);
         continue;
       }
 
-      // 提取视频元数据
-      const metadata = await extractVideoMetadata(videoInfo.path, log);
-
-      // 发送视频消息
-      if (useProactiveApi && target) {
-        await sendVideoProactive(config, target, fileName, mediaId, log, metadata);
-      } else {
-        await sendVideoMessage(config, sessionWebhook, fileName, mediaId, log, metadata);
+      // 2. 生成封面图
+      thumbnailPath = path.join(os.tmpdir(), `thumbnail_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`);
+      log?.info?.(`${logPrefix} 准备生成封面: ${thumbnailPath}`);
+      const thumbnail = await extractVideoThumbnail(videoInfo.path, thumbnailPath, log);
+      if (!thumbnail) {
+        log?.warn?.(`${logPrefix} 无法生成封面: ${videoInfo.path}`);
+        statusMessages.push(`⚠️ 视频处理失败: ${fileName}（无法生成封面）`);
+        continue;
       }
+      
+      // 检查生成的封面文件
+      if (fs.existsSync(thumbnailPath)) {
+        const stats = fs.statSync(thumbnailPath);
+        log?.info?.(`${logPrefix} 封面文件生成完成: ${thumbnailPath}, 大小: ${(stats.size / 1024).toFixed(2)}KB`);
+        if (stats.size < 1024) {  // 小于1KB可能有问题
+          log?.warn?.(`${logPrefix} 封面文件过小，可能存在质量问题`);
+        }
+      } else {
+        log?.error?.(`${logPrefix} 封面文件未生成: ${thumbnailPath}`);
+        statusMessages.push(`⚠️ 视频处理失败: ${fileName}（封面文件未生成）`);
+        continue;
+      }
+
+      // 3. 上传视频
+      const videoMediaId = await uploadMediaToDingTalk(videoInfo.path, 'video', oapiToken, 20 * 1024 * 1024, log);
+      if (!videoMediaId) {
+        log?.warn?.(`${logPrefix} 视频上传失败: ${videoInfo.path}`);
+        statusMessages.push(`⚠️ 视频上传失败: ${fileName}（文件可能超过 20MB 限制）`);
+        continue;
+      }
+      const cleanVideoMediaId = videoMediaId.replace('https://down.dingtalk.com/media/', '');
+
+      // 4. 上传封面
+      const picMediaId = await uploadMediaToDingTalk(thumbnailPath, 'image', oapiToken, 20 * 1024 * 1024, log);
+      if (!picMediaId) {
+        log?.warn?.(`${logPrefix} 封面上传失败: ${thumbnailPath}`);
+        statusMessages.push(`⚠️ 视频封面上传失败: ${fileName}`);
+        continue;
+      }
+      const cleanPicMediaId = picMediaId.replace('https://down.dingtalk.com/media/', '');
+
+      // 5. 发送视频消息
+      if (useProactiveApi && target) {
+        await sendVideoProactive(config, target, cleanVideoMediaId, cleanPicMediaId, metadata, log);
+      } else {
+        await sendVideoMessage(config, sessionWebhook, fileName, videoMediaId, log, metadata);
+      }
+      
       statusMessages.push(`✅ 视频已发送: ${fileName}`);
       log?.info?.(`${logPrefix} 视频处理完成: ${fileName}`);
     } catch (err: any) {
       log?.error?.(`${logPrefix} 处理视频失败: ${err.message}`);
       statusMessages.push(`⚠️ 视频处理异常: ${fileName}（${err.message}）`);
+    } finally {
+      // 清理临时封面文件
+      if (thumbnailPath && fs.existsSync(thumbnailPath)) {
+        try {
+          fs.unlinkSync(thumbnailPath);
+          log?.info?.(`${logPrefix} 临时封面已清理: ${thumbnailPath}`);
+        } catch (cleanupErr: any) {
+          log?.warn?.(`${logPrefix} 清理临时文件失败: ${cleanupErr?.message || cleanupErr}`);
+        }
+      }
     }
   }
 
@@ -701,10 +755,13 @@ export async function sendVideoProactive(
       timeout: 10_000,
     });
 
+    log?.info?.(`[DingTalk][Video][Proactive] 钉钉 API 响应: ${JSON.stringify(resp.data, null, 2)}`);
+    
     if (resp.data?.processQueryKey) {
       log?.info?.(`[DingTalk][Video][Proactive] 视频消息发送成功`);
     } else {
-      log?.warn?.(`[DingTalk][Video][Proactive] 视频消息发送响应异常: ${JSON.stringify(resp.data)}`);
+      log?.error?.(`[DingTalk][Video][Proactive] 视频消息发送失败: ${JSON.stringify(resp.data)}`);
+      throw new Error(`视频消息发送失败: ${JSON.stringify(resp.data)}`);
     }
   } catch (err: any) {
     log?.error?.(`[DingTalk][Video][Proactive] 发送视频消息失败, 错误: ${err.message}`);
@@ -922,6 +979,12 @@ export async function sendFileProactive(
  * 
  * 这样 SDK 就检测不到文件路径，也就不会调用 sendMedia 了。
  */
+interface AICardTarget {
+  type: 'user' | 'group';
+  userId?: string;
+  openConversationId?: string;
+}
+
 export async function processRawMediaPaths(
   content: string,
   config: DingtalkConfig,
@@ -957,22 +1020,22 @@ export async function processRawMediaPaths(
       
       // 判断文件类型
       const ext = filePath.toLowerCase().split('.').pop() || '';
-      let mediaType: 'video' | 'audio' | 'file';
+      let mediaType: 'video' | 'voice' | 'file';
       
       if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
         mediaType = 'video';
       } else if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(ext)) {
-        mediaType = 'audio';
+        mediaType = 'voice';  // 钉钉 API 中音频类型是 'voice'
       } else {
         mediaType = 'file';
       }
       
       // 上传文件到钉钉
       const mediaId = await uploadMediaToDingTalk(
-        config,
         filePath,
         mediaType,
         oapiToken,
+        20 * 1024 * 1024,
         log
       );
       
@@ -993,7 +1056,7 @@ export async function processRawMediaPaths(
           await sendVideoProactive(config, target, mediaId, fileName, log, metadata);
         }
         statusMessages.push(`✅ 视频已发送: ${fileName}`);
-      } else if (mediaType === 'audio') {
+      } else if (mediaType === 'voice') {
         // 提取音频时长
         const durationMs = await extractAudioDuration(filePath, log);
         

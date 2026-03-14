@@ -2036,11 +2036,15 @@ async function sendVideoProactive(
     }
 
     log?.info?.(`[DingTalk][Video][Proactive] 发送视频消息`);
+    log?.info?.(`[DingTalk][Video][Proactive] 请求体: ${JSON.stringify(body, null, 2)}`);
+    log?.info?.(`[DingTalk][Video][Proactive] endpoint: ${endpoint}`);
     const resp = await axios.post(endpoint, body, {
       headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
       timeout: 10_000,
     });
 
+    log?.info?.(`[DingTalk][Video][Proactive] 钉钉 API 响应: ${JSON.stringify(resp.data, null, 2)}`);
+    
     if (resp.data?.processQueryKey) {
       log?.info?.(`[DingTalk][Video][Proactive] 视频消息发送成功`);
     } else {
