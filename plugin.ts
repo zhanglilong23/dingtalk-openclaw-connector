@@ -1469,47 +1469,64 @@ async function* streamFromGateway(options: GatewayOptions, accountId: string): A
 
   log?.info?.(`[DingTalk][Gateway] POST ${gatewayUrl}, session=${sessionKey}, accountId=${accountId}, agentId=${agentId}, peerKind=${peerKind}, messages=${messages.length}`);
 
-  const response = await fetch(gatewayUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: 'main',
-      messages,
-      stream: true,
-      user: sessionKey,  // 用于 session 持久化
-    }),
-  });
+  // 【TLS 模式修复】保存原始 TLS 设置，用于 finally 块中恢复
+  const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  
+  try {
+    // TLS 模式：如果是 HTTPS URL，临时禁用证书验证（用于自签名证书场景）
+    if (gatewayUrl.startsWith('https://')) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      log?.debug?.(`[DingTalk][Gateway] TLS 模式：已临时禁用证书验证`);
+    }
 
-  log?.info?.(`[DingTalk][Gateway] 响应 status=${response.status}, ok=${response.ok}, hasBody=${!!response.body}`);
+    const response = await fetch(gatewayUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: 'main',
+        messages,
+        stream: true,
+        user: sessionKey,  // 用于 session 持久化
+      }),
+    });
 
-  if (!response.ok || !response.body) {
-    const errText = response.body ? await response.text() : '(no body)';
-    log?.error?.(`[DingTalk][Gateway] 错误响应: ${errText}`);
-    throw new Error(`Gateway error: ${response.status} - ${errText}`);
-  }
+    log?.info?.(`[DingTalk][Gateway] 响应 status=${response.status}, ok=${response.ok}, hasBody=${!!response.body}`);
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+    if (!response.ok || !response.body) {
+      const errText = response.body ? await response.text() : '(no body)';
+      log?.error?.(`[DingTalk][Gateway] 错误响应：${errText}`);
+      throw new Error(`Gateway error: ${response.status} - ${errText}`);
+    }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const data = line.slice(6).trim();
-      if (data === '[DONE]') return;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
-      try {
-        const chunk = JSON.parse(data);
-        const content = chunk.choices?.[0]?.delta?.content;
-        if (content) yield content;
-      } catch {}
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') return;
+
+        try {
+          const chunk = JSON.parse(data);
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) yield content;
+        } catch {}
+      }
+    }
+  } finally {
+    // 【TLS 模式修复】恢复原始 TLS 证书验证设置，避免影响其他 HTTPS 请求
+    if (gatewayUrl.startsWith('https://')) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+      log?.debug?.(`[DingTalk][Gateway] TLS 模式：已恢复证书验证设置`);
     }
   }
 }
@@ -2950,7 +2967,7 @@ async function handleDingTalkMessage(params: {
       const finalContent = accumulated.trim();
       if (finalContent.length === 0) {
         log?.info?.(`[DingTalk][AICard] 内容为空（纯媒体消息），使用默认提示`);
-        await finishAICard(card, '✅ 媒体已发送', log);
+        await finishAICard(card, '服务调用异常', log);
       } else {
         await finishAICard(card, finalContent, log);
       }
@@ -3551,14 +3568,14 @@ const dingtalkPlugin = {
 
       ctx.log?.info(`[${account.accountId}] 启动钉钉 Stream 客户端...`);
 
-      // 配置 DWClient：关闭 SDK 内置的 keepAlive，使用应用层自定义心跳
-      // - autoReconnect: 连接断开时自动重连
+      // 配置 DWClient：关闭 SDK 内置的 keepAlive 和 autoReconnect，使用应用层自定义心跳和重连
+      // - autoReconnect: false（关闭 SDK 的自动重连，避免与应用层重连冲突）
       // - keepAlive: false（关闭 SDK 的激进心跳检测，避免 8 秒超时强制终止连接）
       const client = new DWClient({
         clientId: config.clientId,
         clientSecret: config.clientSecret,
         debug: config.debug || false,
-        autoReconnect: true,
+        autoReconnect: false,  // ← 关闭 SDK 的自动重连，使用应用层重连
         keepAlive: false,
       } as any);
 
@@ -3566,11 +3583,27 @@ const dingtalkPlugin = {
         const messageId = res.headers?.messageId;
         ctx.log?.info?.(`[DingTalk] 收到 Stream 回调, messageId=${messageId}, headers=${JSON.stringify(res.headers)}`);
 
-        // 【关键修复】立即确认回调，避免钉钉服务器因超时而重发
-        // 钉钉 Stream 模式要求及时响应，否则约60秒后会重发消息
+        // 【关键修复】检查 WebSocket 状态后再确认回调，避免在 CONNECTING 状态下发送失败
         if (messageId) {
-          client.socketCallBackResponse(messageId, { success: true });
-          ctx.log?.info?.(`[DingTalk] 已立即确认回调: messageId=${messageId}`);
+          if (client.socket?.readyState === 1) {  // 1 = OPEN
+            client.socketCallBackResponse(messageId, { success: true });
+            ctx.log?.info?.(`[DingTalk] 已立即确认回调：messageId=${messageId}`);
+          } else {
+            ctx.log?.warn?.(`[DingTalk] WebSocket 未就绪 (readyState=${client.socket?.readyState})，延迟确认回调：messageId=${messageId}`);
+            // 【关键修复】将消息 ID 加入待确认队列，等待 WebSocket 打开后批量确认
+            pendingAckQueue.add(messageId);
+            // 等待 WebSocket 打开后再确认（兼容旧逻辑，但主要依赖 open 事件）
+            setTimeout(() => {
+              if (client.socket?.readyState === 1) {
+                client.socketCallBackResponse(messageId, { success: true });
+                pendingAckQueue.delete(messageId);  // 确认成功后从队列移除
+                ctx.log?.info?.(`[DingTalk] 延迟确认回调成功：messageId=${messageId}`);
+              } else {
+                ctx.log?.warn?.(`[DingTalk] 延迟确认回调失败：WebSocket 仍未就绪，messageId=${messageId}，将在 open 事件中批量确认`);
+                // 不再从队列移除，等待 open 事件处理
+              }
+            }, 500);  // 【关键修复】增加延迟时间到 500ms，确保 WebSocket 有足够时间打开
+          }
         }
 
         // 【消息去重】检查是否已处理过该消息
@@ -3604,6 +3637,19 @@ const dingtalkPlugin = {
       });
 
       await client.connect();
+      
+      // 【关键修复】等待 WebSocket 完全打开后再继续
+      // 避免 Gateway 重启后 WebSocket 还在 CONNECTING 状态就开始处理消息
+      if (client.socket) {
+        if (client.socket.readyState !== 1) {  // 1 = OPEN
+          ctx.log?.info?.(`[${account.accountId}] 等待 WebSocket 打开...`);
+          await new Promise((resolve) => {
+            client.socket!.once('open', resolve);
+            setTimeout(resolve, 5000);  // 最多等 5 秒
+          });
+        }
+      }
+      
       ctx.log?.info(`[${account.accountId}] 钉钉 Stream 客户端已连接`);
 
       const rt = getRuntime();
@@ -3620,6 +3666,9 @@ const dingtalkPlugin = {
       const HEARTBEAT_INTERVAL = 30 * 1000; // 30 秒
       const HEARTBEAT_TIMEOUT = 90 * 1000;  // 90 秒
       
+      // 【关键修复】待确认消息队列：重连期间暂存需要确认的消息 ID
+      const pendingAckQueue = new Set<string>();
+      
       // 监听 pong 响应（SDK 的 keepAlive=false 时仍然会收到服务端的 pong）
       client.socket?.on('pong', () => {
         lastPongTime = Date.now();
@@ -3627,10 +3676,32 @@ const dingtalkPlugin = {
         ctx.log?.debug?.(`[${account.accountId}] 收到 PONG 响应`);
       });
       
+      // 【关键修复】监听 WebSocket open 事件，批量确认重连期间积压的消息
+      client.socket?.on('open', () => {
+        if (pendingAckQueue.size > 0) {
+          ctx.log?.info?.(`[${account.accountId}] WebSocket 已打开，批量确认 ${pendingAckQueue.size} 条积压消息`);
+          for (const msgId of pendingAckQueue) {
+            try {
+              client.socketCallBackResponse(msgId, { success: true });
+              ctx.log?.info?.(`[DingTalk] 批量确认成功：messageId=${msgId}`);
+            } catch (err: any) {
+              ctx.log?.error?.(`[DingTalk] 批量确认失败：messageId=${msgId}, error=${err.message}`);
+            }
+          }
+          pendingAckQueue.clear();
+        }
+      });
+      
       // 启动心跳检测定时器
-      const heartbeatTimer = setInterval(async () => {
+      let isReconnecting = false;  // 【关键修复】重连标志位，避免重连时重复触发
+      let heartbeatTimer: NodeJS.Timeout | null = setInterval(async () => {
+        // 【关键修复】如果是重连过程中，跳过本次执行
+        if (isReconnecting) {
+          return;
+        }
+        
         if (stopped) {
-          clearInterval(heartbeatTimer);
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
           return;
         }
         
@@ -3640,11 +3711,18 @@ const dingtalkPlugin = {
         if (elapsed > HEARTBEAT_TIMEOUT) {
           ctx.log?.warn?.(`[${account.accountId}] ⚠️ 心跳超时：已 ${Math.round(elapsed / 1000)} 秒未收到 PONG，触发重连...`);
           
+          // 【关键修复】设置重连标志，避免定时器重复触发
+          isReconnecting = true;
+          
           // 【关键修复】主动重连：先断开再重新建立连接
           try {
-            // 1. 先断开旧连接
-            await client.disconnect();
-            ctx.log?.info?.(`[${account.accountId}] 已断开旧连接`);
+            // 1. 先断开旧连接（检查 WebSocket 状态，避免在 CONNECTING 状态下调用 disconnect）
+            if (client.socket?.readyState === 1 || client.socket?.readyState === 3) {  // 1 = OPEN, 3 = CLOSED
+              await client.disconnect();
+              ctx.log?.info?.(`[${account.accountId}] 已断开旧连接`);
+            } else {
+              ctx.log?.debug?.(`[${account.accountId}] WebSocket 状态为 ${client.socket?.readyState}，跳过 disconnect`);
+            }
             
             // 2. 重新建立连接
             ctx.log?.info?.(`[${account.accountId}] 正在重新建立连接...`);
@@ -3655,20 +3733,12 @@ const dingtalkPlugin = {
             pendingPingId = null;
             
             ctx.log?.info?.(`[${account.accountId}] ✅ 重连成功`);
+            
           } catch (err: any) {
             ctx.log?.error?.(`[${account.accountId}] ❌ 重连失败：${err.message}`);
-            // 重连失败后，等待 5 秒后再次尝试
-            ctx.log?.info?.(`[${account.accountId}] 5 秒后再次尝试重连...`);
-            setTimeout(async () => {
-              try {
-                await client.connect();
-                lastPongTime = Date.now();
-                pendingPingId = null;
-                ctx.log?.info?.(`[${account.accountId}] ✅ 重试重连成功`);
-              } catch (retryErr: any) {
-                ctx.log?.error?.(`[${account.accountId}] ❌ 重试重连失败：${retryErr.message}`);
-              }
-            }, 5000);
+          } finally {
+            // 【关键修复】清除重连标志，恢复心跳检测
+            isReconnecting = false;
           }
           return;
         }
