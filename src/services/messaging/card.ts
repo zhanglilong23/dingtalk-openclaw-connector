@@ -153,7 +153,7 @@ export async function createAICardForTarget(
     const deliverBody = buildDeliverBody(
       cardInstanceId,
       target,
-      config.clientId,
+      String(config.clientId ?? ""),
     );
 
     const deliverResp = await axios.post(
@@ -196,7 +196,7 @@ export async function streamAICard(
       cardData: {
         cardParamMap: {
           flowStatus: AICardStatus.INPUTING,
-          msgContent: "",
+          msgContent: content,
           staticMsgContent: "",
           sys_full_json_obj: JSON.stringify({
             order: ["msgContent"],

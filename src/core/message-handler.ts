@@ -697,8 +697,11 @@ export async function handleDingTalkMessage(params: HandleMessageParams): Promis
         }
 
         const textToSend = finalText.trim() || '✅ 任务执行完成（无文本输出）';
+        const title =
+          textToSend.split('\n')[0]?.replace(/^[#*\s\->]+/, '').trim() || '消息';
         await sendProactive(config, proactiveTarget, textToSend, {
           msgType: 'markdown',
+          title,
           useAICard: false,
           fallbackToNormal: true,
           log,
