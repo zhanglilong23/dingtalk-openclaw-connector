@@ -203,7 +203,7 @@ export async function createAICardForTarget(
     const deliverBody = buildDeliverBody(
       cardInstanceId,
       target,
-      config.clientId,
+      String(config.clientId ?? ""),
     );
 
     log?.info?.(
@@ -937,8 +937,18 @@ export async function sendMediaToDingTalk(params: {
     log.info("媒体类型判断完成:", mediaType);
 
     // 上传文件到钉钉
-    const debugEnabled = config.debug === true || config.debug === 'true';
+    const debugEnabled =
+      config.debug === true || String(config.debug).toLowerCase() === "true";
     log.info("准备调用 uploadMediaToDingTalk，参数:", { mediaUrl, mediaType, debug: debugEnabled });
+    if (!oapiToken) {
+      log.error("oapiToken 为空，无法上传媒体文件");
+      return sendProactive(
+        config,
+        targetParam,
+        "⚠️ 媒体文件处理失败：缺少 oapiToken",
+        { msgType: "text", replyToId },
+      );
+    }
     const uploadResult = await uploadMediaToDingTalk(
       mediaUrl,
       mediaType,
@@ -1236,9 +1246,20 @@ async function sendProactiveInternal(
       },
     });
 
-    log?.info?.(
-      `[DingTalk] 发送${isUser ? '单聊' : '群聊'}消息成功：processQueryKey=${resp.data?.processQueryKey}`,
-    );
+    // 重要：钉钉接口有时会出现 HTTP 200 但业务失败的情况，需要打印返回体辅助排查
+    try {
+      const dataPreview = JSON.stringify(resp.data ?? {});
+      const truncated =
+        dataPreview.length > 2000 ? `${dataPreview.slice(0, 2000)}...(truncated)` : dataPreview;
+      const msg = `[DingTalk] 发送${isUser ? "单聊" : "群聊"}消息响应：status=${resp.status}, processQueryKey=${resp.data?.processQueryKey ?? ""}, data=${truncated}`;
+      // 某些运行环境可能不展示自定义 logger 输出，因此同时打到 console
+      console.log(msg);
+      log?.info?.(msg);
+    } catch {
+      const msg = `[DingTalk] 发送${isUser ? "单聊" : "群聊"}消息响应：status=${resp.status}, processQueryKey=${resp.data?.processQueryKey ?? ""}`;
+      console.log(msg);
+      log?.info?.(msg);
+    }
 
     return {
       ok: true,
@@ -1246,7 +1267,27 @@ async function sendProactiveInternal(
       usedAICard: false,
     };
   } catch (err: any) {
-    log?.error?.(`[DingTalk] 发送${target.type === 'user' ? '单聊' : '群聊'}消息失败：${err.message}`);
-    return { ok: false, error: err.message, usedAICard: false };
+    const status = err?.response?.status;
+    const respData = err?.response?.data;
+    let respPreview = "";
+    try {
+      const raw = JSON.stringify(respData ?? {});
+      respPreview = raw.length > 2000 ? `${raw.slice(0, 2000)}...(truncated)` : raw;
+    } catch {
+      respPreview = String(respData ?? "");
+    }
+
+    const baseMsg = err?.message ? String(err.message) : String(err);
+    const extra =
+      typeof status === "number"
+        ? ` status=${status}${respPreview ? `, data=${respPreview}` : ""}`
+        : respPreview
+          ? ` data=${respPreview}`
+          : "";
+
+    const msg = `[DingTalk] 发送${target.type === "user" ? "单聊" : "群聊"}消息失败：${baseMsg}${extra}`;
+    console.error(msg);
+    log?.error?.(msg);
+    return { ok: false, error: baseMsg, usedAICard: false };
   }
 }
