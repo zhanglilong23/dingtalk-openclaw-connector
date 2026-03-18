@@ -2,7 +2,7 @@
  * 钉钉插件工具函数
  */
 
-import type { DingtalkConfig, ResolvedDingtalkAccount } from './types.js';
+import type { DingtalkConfig, ResolvedDingtalkAccount } from '../types/index.ts';
 
 // ============ 常量 ============
 
@@ -118,16 +118,28 @@ export function normalizeSlashCommand(text: string): string {
 
 // ============ Access Token 缓存 ============
 
-let accessToken: string | null = null;
-let accessTokenExpiry = 0;
+type CachedToken = {
+  token: string;
+  expiryMs: number;
+};
+
+// 注意：这里仍被部分新逻辑引用（如 message-handler），必须支持多账号，不能用全局单例缓存
+const apiTokenCache = new Map<string, CachedToken>();
+const oapiTokenCache = new Map<string, CachedToken>();
+
+function cacheKey(config: DingtalkConfig): string {
+  return String((config as any)?.clientId ?? '').trim();
+}
 
 /**
  * 获取钉钉 Access Token（新版 API）
  */
 export async function getAccessToken(config: DingtalkConfig): Promise<string> {
   const now = Date.now();
-  if (accessToken && accessTokenExpiry > now + 60_000) {
-    return accessToken;
+  const key = cacheKey(config);
+  const cached = apiTokenCache.get(key);
+  if (cached && cached.expiryMs > now + 60_000) {
+    return cached.token;
   }
 
   const axios = (await import('axios')).default;
@@ -136,9 +148,10 @@ export async function getAccessToken(config: DingtalkConfig): Promise<string> {
     appSecret: config.clientSecret,
   });
 
-  accessToken = response.data.accessToken;
-  accessTokenExpiry = now + response.data.expireIn * 1000;
-  return accessToken!;
+  const token = response.data.accessToken as string;
+  const expireInSec = Number(response.data.expireIn ?? 0);
+  apiTokenCache.set(key, { token, expiryMs: now + expireInSec * 1000 });
+  return token;
 }
 
 /**
@@ -146,11 +159,23 @@ export async function getAccessToken(config: DingtalkConfig): Promise<string> {
  */
 export async function getOapiAccessToken(config: DingtalkConfig): Promise<string | null> {
   try {
+    const now = Date.now();
+    const key = cacheKey(config);
+    const cached = oapiTokenCache.get(key);
+    if (cached && cached.expiryMs > now + 60_000) {
+      return cached.token;
+    }
+
     const axios = (await import('axios')).default;
     const resp = await axios.get(`${DINGTALK_OAPI}/gettoken`, {
       params: { appkey: config.clientId, appsecret: config.clientSecret },
     });
-    if (resp.data?.errcode === 0) return resp.data.access_token;
+    if (resp.data?.errcode === 0 && resp.data?.access_token) {
+      const token = String(resp.data.access_token);
+      const expiresInSec = Number(resp.data.expires_in ?? 7200);
+      oapiTokenCache.set(key, { token, expiryMs: now + expiresInSec * 1000 });
+      return token;
+    }
     return null;
   } catch {
     return null;
