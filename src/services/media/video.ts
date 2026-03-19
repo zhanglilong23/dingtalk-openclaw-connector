@@ -3,9 +3,9 @@
  * 支持视频元数据提取、封面生成、视频消息发送
  */
 
-import type { Logger } from 'openclaw/plugin-sdk';
 import type { DingtalkConfig } from '../../types/index.ts';
 import { VIDEO_MARKER_PATTERN, toLocalPath, uploadMediaToDingTalk } from './common.ts';
+import * as fs from 'fs';
 
 /** 视频信息接口 */
 export interface VideoInfo {
@@ -17,7 +17,7 @@ export interface VideoInfo {
  */
 export async function extractVideoMetadata(
   filePath: string,
-  log?: Logger,
+  log?: any,
 ): Promise<{ duration: number; width: number; height: number } | null> {
   try {
     const ffmpeg = require('fluent-ffmpeg');
@@ -57,7 +57,7 @@ export async function extractVideoMetadata(
 export async function extractVideoThumbnail(
   videoPath: string,
   outputPath: string,
-  log?: Logger,
+  log?: any,
 ): Promise<string | null> {
   try {
     const ffmpeg = require('fluent-ffmpeg');
@@ -97,7 +97,7 @@ export async function processVideoMarkers(
   sessionWebhook: string,
   config: DingtalkConfig,
   oapiToken: string | null,
-  log?: Logger,
+  log?: any,
   useProactiveApi: boolean = false,
   target?: any,
 ): Promise<string> {
@@ -109,6 +109,10 @@ export async function processVideoMarkers(
   }
 
   const matches = [...content.matchAll(VIDEO_MARKER_PATTERN)];
+  if (matches.length === 0) {
+    log?.info?.(`${logPrefix} 未检测到视频标记，跳过处理`);
+    return content;
+  }
   const videoInfos: VideoInfo[] = [];
   const invalidVideos: string[] = [];
 
@@ -125,19 +129,32 @@ export async function processVideoMarkers(
   }
 
   if (videoInfos.length === 0) {
+    // 只有无效标记时，也要移除标记避免原样输出
+    if (invalidVideos.length > 0) {
+      log?.warn?.(`${logPrefix} 检测到无效视频标记，已忽略并移除`);
+      return content.replaceAll(VIDEO_MARKER_PATTERN, '').trim();
+    }
     return content;
   }
 
   log?.info?.(`${logPrefix} 检测到 ${videoInfos.length} 个视频，开始上传...`);
 
   let result = content;
-  for (const videoInfo of videoInfos) {
-    const mediaId = await uploadMediaToDingTalk(videoInfo.path, 'video', oapiToken, 20 * 1024 * 1024, log);
-    if (mediaId) {
-      result = result.replace(
-        `[DINGTALK_VIDEO]${JSON.stringify({ path: videoInfo.path })}[/DINGTALK_VIDEO]`,
-        `[视频已上传：${mediaId}]`,
-      );
+  for (const match of matches) {
+    const full = match[0];
+    try {
+      const videoData = JSON.parse(match[1]);
+      const absPath = toLocalPath(videoData.path);
+      if (!fs.existsSync(absPath)) {
+        log?.warn?.(`${logPrefix} 视频文件不存在：${absPath}`);
+        result = result.replace(full, '⚠️ 视频文件不存在');
+        continue;
+      }
+      const mediaId = await uploadMediaToDingTalk(absPath, 'video', oapiToken, 20 * 1024 * 1024, log);
+      result = result.replace(full, mediaId ? `[视频已上传：${mediaId}]` : '⚠️ 视频上传失败');
+    } catch {
+      log?.warn?.(`${logPrefix} 解析视频标记失败：${match[1]}`);
+      result = result.replace(full, '');
     }
   }
 

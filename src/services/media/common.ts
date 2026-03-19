@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import { createLogger } from '../../utils/logger.ts';
+import { CHUNK_CONFIG } from './chunk-upload.ts';
 
 // ============ 常量 ============
 
@@ -62,21 +63,25 @@ export async function uploadMediaToDingTalk(
   mediaType: 'image' | 'file' | 'video' | 'voice',
   oapiToken: string,
   maxSize: number = 20 * 1024 * 1024,
-  debug: boolean = false,
+  logOrDebug?: any,
+  debug?: boolean,
 ): Promise<string | null> {
-  // 确保 debug 是布尔值
-  const debugEnabled = debug === true || debug === 'true';
-  const log = createLogger(debugEnabled, `DingTalk][${mediaType}`);
+  const debugEnabled =
+    typeof logOrDebug === 'boolean' ? logOrDebug === true : debug === true;
+  const externalLog = typeof logOrDebug === 'boolean' ? undefined : logOrDebug;
+  const log = externalLog ?? createLogger(debugEnabled, `DingTalk][${mediaType}`);
   
-  log.info(`[uploadMediaToDingTalk] 开始上传，filePath: ${filePath}, mediaType: ${mediaType}, debug: ${debugEnabled}`);
+  log?.info?.(
+    `[uploadMediaToDingTalk] 开始上传，filePath: ${filePath}, mediaType: ${mediaType}, debug: ${debugEnabled}`,
+  );
   
   try {
     const FormData = (await import('form-data')).default;
 
     const absPath = toLocalPath(filePath);
-    log.info(`检查文件是否存在：${absPath}`);
+    log?.info?.(`检查文件是否存在：${absPath}`);
     if (!fs.existsSync(absPath)) {
-      log.warn(`文件不存在：${absPath}`);
+      log?.warn?.(`文件不存在：${absPath}`);
       return null;
     }
 
@@ -86,17 +91,17 @@ export async function uploadMediaToDingTalk(
 
     // ✅ 对于视频和文件类型，如果超过 20MB，使用分块上传
     if ((mediaType === 'video' || mediaType === 'file') && fileSize > CHUNK_CONFIG.SIZE_THRESHOLD) {
-      log.info(`文件超过 20MB，使用分块上传：${absPath} (${fileSizeMB}MB)`);
+      log?.info?.(`文件超过 20MB，使用分块上传：${absPath} (${fileSizeMB}MB)`);
       try {
         const { uploadLargeFileByChunks } = await import('./chunk-upload.js');
-        const downloadCode = await uploadLargeFileByChunks(absPath, mediaType, oapiToken, debug);
+        const downloadCode = await uploadLargeFileByChunks(absPath, mediaType, oapiToken, debugEnabled);
         if (downloadCode) {
-          log.info(`分块上传成功：${absPath}, download_code: ${downloadCode}`);
+          log?.info?.(`分块上传成功：${absPath}, download_code: ${downloadCode}`);
           return downloadCode;
         }
-        log.error(`分块上传失败：${absPath}`);
+        log?.error?.(`分块上传失败：${absPath}`);
       } catch (chunkErr: any) {
-        log.error(`分块上传异常：${chunkErr.message}`);
+        log?.error?.(`分块上传异常：${chunkErr.message}`);
       }
       return null;
     }
@@ -104,7 +109,7 @@ export async function uploadMediaToDingTalk(
     // 检查文件大小（对于小于 20MB 的文件）
     if (stats.size > maxSize) {
       const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(0);
-      log.warn(
+      log?.warn?.(
         `文件过大：${absPath}, 大小：${fileSizeMB}MB, 超过限制 ${maxSizeMB}MB`,
       );
       return null;
@@ -116,10 +121,9 @@ export async function uploadMediaToDingTalk(
       contentType: mediaType === 'image' ? 'image/jpeg' : 'application/octet-stream',
     });
 
-    // ✅ 钉钉媒体上传 API 不支持 video 类型，视频需要使用 file 类型上传
-    const uploadType = mediaType === 'video' ? 'file' : mediaType;
-    
-    log.info(`上传文件：${absPath} (${fileSizeMB}MB), uploadType=${uploadType}`);
+    const uploadType = mediaType;
+
+    log?.info?.(`上传文件：${absPath} (${fileSizeMB}MB), uploadType=${uploadType}`);
     const resp = await axios.post(
       `${DINGTALK_OAPI}/media/upload?access_token=${oapiToken}&type=${uploadType}`,
       form,
@@ -129,14 +133,13 @@ export async function uploadMediaToDingTalk(
     const mediaId = resp.data?.media_id;
     if (mediaId) {
       const cleanMediaId = mediaId.startsWith('@') ? mediaId.substring(1) : mediaId;
-      const downloadUrl = `https://down.dingtalk.com/media/${cleanMediaId}`;
-      log.info(`上传成功：mediaId=${cleanMediaId}`);
-      return downloadUrl;
+      log?.info?.(`上传成功：mediaId=${cleanMediaId}`);
+      return cleanMediaId;
     }
-    log.warn(`上传返回无 media_id`);
+    log?.warn?.(`上传返回无 media_id`);
     return null;
   } catch (err: any) {
-    log.error(`上传失败：${err.message}`);
+    log?.error?.(`上传失败：${err.message}`);
     return null;
   }
 }

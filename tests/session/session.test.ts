@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { __testables } from '../../plugin';
+import { __testables } from '../../test';
 
 const {
   normalizeSlashCommand,

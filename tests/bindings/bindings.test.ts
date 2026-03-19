@@ -14,7 +14,7 @@ vi.mock('os', () => ({
   homedir: () => '/fake-home',
 }));
 
-// 保证 plugin 在本文件内加载时使用上面 mock 的 fs/path/os
+// 保证 test 在本文件内加载时使用上面 mock 的 fs/path/os
 let resolveAgentIdByBindings: (a: string, b: 'direct' | 'group', c: string, l?: any) => string;
 
 const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -25,7 +25,7 @@ describe('resolveAgentIdByBindings', () => {
     vi.clearAllMocks();
     mockExistsSync.mockReturnValue(false);
     vi.resetModules();
-    const { __testables } = await import('../../plugin');
+    const { __testables } = await import('../../test');
     resolveAgentIdByBindings = (__testables as any).resolveAgentIdByBindings;
     (__testables as any).setRuntimeForTest({});
   });
@@ -183,6 +183,17 @@ describe('resolveAgentIdByBindings', () => {
     mockReadFileSync.mockReturnValue(
       JSON.stringify({
         bindings: [{ agentId: '', match: { peer: { kind: 'direct', id: 'u1' } } }],
+      }),
+    );
+    const out = resolveAgentIdByBindings('acc1', 'direct', 'u1', log);
+    expect(out).toBe('acc1');
+  });
+
+  it('ignores binding when match has no effective criteria', () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        bindings: [{ agentId: 'noop', match: {} }],
       }),
     );
     const out = resolveAgentIdByBindings('acc1', 'direct', 'u1', log);

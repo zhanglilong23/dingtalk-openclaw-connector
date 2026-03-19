@@ -61,7 +61,7 @@ export interface ProactiveSendOptions {
 /**
  * 发送 Markdown 消息
  */
-async function sendMarkdownMessage(
+export async function sendMarkdownMessage(
   config: DingtalkConfig,
   sessionWebhook: string,
   title: string,
@@ -92,7 +92,7 @@ async function sendMarkdownMessage(
 /**
  * 发送文本消息
  */
-async function sendTextMessage(
+export async function sendTextMessage(
   config: DingtalkConfig,
   sessionWebhook: string,
   text: string,
@@ -146,7 +146,7 @@ export async function sendMessage(
 /**
  * 构建普通消息的 msgKey 和 msgParam
  */
-function buildMsgPayload(
+export function buildMsgPayload(
   msgType: DingTalkMsgType,
   content: string,
   title?: string,
@@ -201,7 +201,7 @@ function buildMsgPayload(
 /**
  * 使用普通消息 API 发送单聊消息（降级方案）
  */
-async function sendNormalToUser(
+export async function sendNormalToUser(
   config: DingtalkConfig,
   userIds: string | string[],
   content: string,
@@ -269,7 +269,7 @@ async function sendNormalToUser(
 /**
  * 使用普通消息 API 发送群聊消息（降级方案）
  */
-async function sendNormalToGroup(
+export async function sendNormalToGroup(
   config: DingtalkConfig,
   openConversationId: string,
   content: string,
@@ -336,7 +336,7 @@ async function sendNormalToGroup(
 /**
  * 主动创建并发送 AI Card（通用内部实现）
  */
-async function sendAICardInternal(
+export async function sendAICardInternal(
   config: DingtalkConfig,
   target: AICardTarget,
   content: string,
@@ -475,10 +475,22 @@ export async function sendAICardToGroup(
  */
 export async function sendToUser(
   config: DingtalkConfig,
-  userId: string,
+  userId: string | string[],
   text: string,
   options?: ProactiveSendOptions,
 ): Promise<SendResult> {
+  if (!config?.clientId || !config?.clientSecret) {
+    return { ok: false, error: "Missing clientId or clientSecret", usedAICard: false };
+  }
+  if (!userId || (Array.isArray(userId) && userId.length === 0)) {
+    return { ok: false, error: "userId is empty", usedAICard: false };
+  }
+
+  // 多用户：使用普通消息 API（不走 AI Card）
+  if (Array.isArray(userId)) {
+    return sendNormalToUser(config, userId, text, options || {});
+  }
+
   return sendProactive(config, { userId }, text, options || {});
 }
 
@@ -491,6 +503,12 @@ export async function sendToGroup(
   text: string,
   options?: ProactiveSendOptions,
 ): Promise<SendResult> {
+  if (!config?.clientId || !config?.clientSecret) {
+    return { ok: false, error: "Missing clientId or clientSecret", usedAICard: false };
+  }
+  if (!openConversationId || typeof openConversationId !== "string") {
+    return { ok: false, error: "openConversationId is empty", usedAICard: false };
+  }
   return sendProactive(config, { openConversationId }, text, options || {});
 }
 
@@ -960,8 +978,8 @@ async function sendProactiveInternal(
           : "";
 
     const msg = `发送${target.type === "user" ? "单聊" : "群聊"}消息失败：${baseMsg}${extra}`;
-log.error(msg);
-externalLog.error(msg);
+    log.error(msg);
+    externalLog?.error?.(msg);
     return { ok: false, error: baseMsg, usedAICard: false };
   }
 }

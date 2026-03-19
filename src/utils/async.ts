@@ -8,36 +8,44 @@ export async function raceWithTimeoutAndAbort<T>(
   opts: { timeoutMs: number; abortSignal?: AbortSignal },
 ): Promise<RaceResult<T>> {
   const { timeoutMs, abortSignal } = opts;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortHandler: (() => void) | undefined;
 
-  const timeoutPromise = new Promise<RaceResult<T>>((resolve) => {
-    const timeoutId = setTimeout(() => resolve({ status: "timeout" }), timeoutMs);
-    // Clean up timeout if promise resolves first
-    promise.finally(() => clearTimeout(timeoutId));
+  const timeoutOutcome = new Promise<{ kind: "timeout" }>((resolve) => {
+    timeoutId = setTimeout(() => resolve({ kind: "timeout" }), timeoutMs);
   });
 
-  const abortPromise = new Promise<RaceResult<T>>((resolve) => {
-    if (!abortSignal) {
-      resolve({ status: "aborted" });
-      return;
-    }
-    if (abortSignal.aborted) {
-      resolve({ status: "aborted" });
-      return;
-    }
-    const onAbort = () => resolve({ status: "aborted" });
-    abortSignal.addEventListener("abort", onAbort, { once: true });
-    // Clean up listener if promise resolves first
-    promise.finally(() => abortSignal.removeEventListener("abort", onAbort));
-  });
+  const abortOutcome: Promise<{ kind: "aborted" }> | Promise<never> = abortSignal
+    ? new Promise<{ kind: "aborted" }>((resolve) => {
+        if (abortSignal.aborted) {
+          resolve({ kind: "aborted" });
+          return;
+        }
+        abortHandler = () => resolve({ kind: "aborted" });
+        abortSignal.addEventListener("abort", abortHandler, { once: true });
+      })
+    : new Promise<never>(() => {});
 
   try {
-    const value = await Promise.race([promise, timeoutPromise, abortPromise]);
-    if (value === timeoutPromise || value === abortPromise) {
-      return value;
+    const winner = await Promise.race([
+      promise.then((value) => ({ kind: "success" as const, value })),
+      timeoutOutcome,
+      abortOutcome,
+    ]);
+
+    if (winner.kind === "success") {
+      return { status: "success", value: winner.value };
     }
-    return { status: "success", value };
-  } catch (err) {
-    // Propagate errors from the main promise
-    throw err;
+    if (winner.kind === "timeout") {
+      return { status: "timeout" };
+    }
+    return { status: "aborted" };
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    if (abortSignal && abortHandler) {
+      abortSignal.removeEventListener("abort", abortHandler);
+    }
   }
 }

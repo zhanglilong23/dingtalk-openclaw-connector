@@ -30,7 +30,7 @@ describe('message sending helpers', () => {
 
   describe('sendMarkdownMessage', () => {
     it('should send markdown message successfully', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMarkdownMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -40,7 +40,7 @@ describe('message sending helpers', () => {
     });
 
     it('should include atUserId when provided', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMarkdownMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -55,7 +55,7 @@ describe('message sending helpers', () => {
     });
 
     it('should use default title when not provided', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMarkdownMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -67,7 +67,7 @@ describe('message sending helpers', () => {
 
   describe('sendTextMessage', () => {
     it('should send text message successfully', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendTextMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -77,7 +77,7 @@ describe('message sending helpers', () => {
     });
 
     it('should include atUserId when provided', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendTextMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -93,7 +93,7 @@ describe('message sending helpers', () => {
 
   describe('sendMessage', () => {
     it('should use markdown for content with markdown syntax', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -108,7 +108,7 @@ describe('message sending helpers', () => {
     });
 
     it('should use markdown for multi-line content', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -121,7 +121,7 @@ describe('message sending helpers', () => {
     });
 
     it('should use text for plain single-line content', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -134,7 +134,7 @@ describe('message sending helpers', () => {
     });
 
     it('should force text when useMarkdown is false', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -148,7 +148,7 @@ describe('message sending helpers', () => {
     });
 
     it('should force markdown when useMarkdown is true', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -161,7 +161,7 @@ describe('message sending helpers', () => {
     });
 
     it('should use custom title when provided', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -174,7 +174,7 @@ describe('message sending helpers', () => {
     });
 
     it('should detect list syntax as markdown', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -187,7 +187,7 @@ describe('message sending helpers', () => {
     });
 
     it('should detect code syntax as markdown', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -200,7 +200,7 @@ describe('message sending helpers', () => {
     });
 
     it('should detect bold/italic syntax as markdown', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -213,7 +213,7 @@ describe('message sending helpers', () => {
     });
 
     it('should detect link syntax as markdown', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendMessage } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };

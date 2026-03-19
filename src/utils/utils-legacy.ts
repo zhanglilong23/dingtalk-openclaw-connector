@@ -42,6 +42,8 @@ export function buildSessionContext(params: {
   groupSubject?: string;
   separateSessionByConversation?: boolean;
   groupSessionScope?: 'group' | 'group_sender';
+  // 新版本可选：跨会话共享记忆（旧实现不处理，但允许透传以保持类型兼容）
+  sharedMemoryAcrossConversations?: boolean;
 }): SessionContext {
   const {
     accountId,

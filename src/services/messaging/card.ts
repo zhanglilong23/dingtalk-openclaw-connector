@@ -74,7 +74,7 @@ function ensureTableBlankLines(text: string): string {
 /**
  * 构建卡片投放请求体
  */
-function buildDeliverBody(
+export function buildDeliverBody(
   cardInstanceId: string,
   target: AICardTarget,
   robotCode: string,
@@ -87,9 +87,6 @@ function buildDeliverBody(
       openSpaceId: `dtv1.card//IM_GROUP.${target.openConversationId}`,
       imGroupOpenDeliverModel: {
         robotCode,
-        extension: {
-          dynamicSummary: "true",
-        },
       },
     };
   }

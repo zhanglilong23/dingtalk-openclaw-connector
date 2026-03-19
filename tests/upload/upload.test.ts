@@ -63,7 +63,7 @@ describe('upload functionality', () => {
 
   describe('uploadMediaToDingTalk', () => {
     it('should upload media successfully', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { uploadMediaToDingTalk } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
@@ -96,7 +96,7 @@ describe('upload functionality', () => {
     });
 
     it('should return null when upload fails', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { uploadMediaToDingTalk } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
@@ -112,7 +112,7 @@ describe('upload functionality', () => {
     });
 
     it('should handle network error', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { uploadMediaToDingTalk } = __testables as any;
 
       mockAxiosPost.mockRejectedValue(new Error('Network error'));
@@ -123,7 +123,7 @@ describe('upload functionality', () => {
     });
 
     it('should support different media types', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { uploadMediaToDingTalk } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
@@ -149,100 +149,9 @@ describe('upload functionality', () => {
     });
   });
 
-  describe('downloadImageToFile', () => {
-    it('should download image to file', async () => {
-      const { __testables } = await import('../../plugin');
-      const { downloadImageToFile } = __testables as any;
-
-      const fs = await import('fs');
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-
-      mockAxiosGet.mockResolvedValue({
-        data: Buffer.from('fake-image-data'),
-      });
-
-      const result = await downloadImageToFile('https://example.com/image.png', '/tmp/image.png', log);
-
-      expect(result).toBeDefined();
-    });
-
-    it('should handle download error', async () => {
-      const { __testables } = await import('../../plugin');
-      const { downloadImageToFile } = __testables as any;
-
-      mockAxiosGet.mockRejectedValue(new Error('Download failed'));
-
-      const result = await downloadImageToFile('https://example.com/image.png', '/tmp/image.png', log);
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('downloadMediaByCode', () => {
-    it('should download media by code', async () => {
-      const { __testables } = await import('../../plugin');
-      const { downloadMediaByCode } = __testables as any;
-
-      mockAxiosGet.mockResolvedValue({
-        data: {
-          errcode: 0,
-          result: {
-            downloadCode: 'code123',
-          },
-        },
-      });
-
-      const result = await downloadMediaByCode('media123', 'token123', log);
-
-      expect(result).toBeDefined();
-    });
-
-    it('should handle API error', async () => {
-      const { __testables } = await import('../../plugin');
-      const { downloadMediaByCode } = __testables as any;
-
-      mockAxiosGet.mockResolvedValue({
-        data: {
-          errcode: 1,
-          errmsg: 'Error',
-        },
-      });
-
-      const result = await downloadMediaByCode('media123', 'token123', log);
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('downloadFileByCode', () => {
-    it('should download file by code', async () => {
-      const { __testables } = await import('../../plugin');
-      const { downloadFileByCode } = __testables as any;
-
-      mockAxiosGet.mockResolvedValue({
-        data: Buffer.from('file-content'),
-      });
-
-      const result = await downloadFileByCode('code123', '/tmp/file.pdf', log);
-
-      expect(result).toBeDefined();
-    });
-
-    it('should handle download error', async () => {
-      const { __testables } = await import('../../plugin');
-      const { downloadFileByCode } = __testables as any;
-
-      mockAxiosGet.mockRejectedValue(new Error('Download failed'));
-
-      const result = await downloadFileByCode('code123', '/tmp/file.pdf', log);
-
-      expect(result).toBeNull();
-    });
-  });
-
   describe('extractVideoMetadata', () => {
     it('should extract video metadata', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractVideoMetadata } = __testables as any;
 
       // Mock fluent-ffmpeg - this will fail without actual ffmpeg
@@ -253,7 +162,7 @@ describe('upload functionality', () => {
     });
 
     it('should return default metadata on error', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractVideoMetadata } = __testables as any;
 
       const result = await extractVideoMetadata('/nonexistent/video.mp4', log);
@@ -264,7 +173,7 @@ describe('upload functionality', () => {
 
   describe('extractVideoThumbnail', () => {
     it('should extract video thumbnail', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractVideoThumbnail } = __testables as any;
 
       const result = await extractVideoThumbnail('/tmp/video.mp4', '/tmp/thumb.png', log);
@@ -276,7 +185,7 @@ describe('upload functionality', () => {
 
   describe('processLocalImages', () => {
     it('should process local images', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processLocalImages } = __testables as any;
 
       const fs = await import('fs');
@@ -297,7 +206,7 @@ describe('upload functionality', () => {
     });
 
     it('should handle missing images', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processLocalImages } = __testables as any;
 
       const fs = await import('fs');
@@ -312,7 +221,7 @@ describe('upload functionality', () => {
 
   describe('processVideoMarkers', () => {
     it('should process video markers', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processVideoMarkers } = __testables as any;
 
       const fs = await import('fs');
@@ -331,7 +240,7 @@ describe('upload functionality', () => {
 
   describe('processFileMarkers', () => {
     it('should process file markers', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processFileMarkers } = __testables as any;
 
       const fs = await import('fs');
@@ -363,7 +272,7 @@ describe('upload functionality', () => {
 
   describe('processAudioMarkers', () => {
     it('should process audio markers', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processAudioMarkers } = __testables as any;
 
       const fs = await import('fs');

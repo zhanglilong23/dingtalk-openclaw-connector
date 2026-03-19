@@ -8,9 +8,6 @@ vi.mock('axios', () => ({
 }));
 
 import axios from 'axios';
-import { __testables } from '../../plugin';
-
-const { getConfig, isConfigured, getAccessToken, getOapiAccessToken, getUnionId } = __testables as any;
 
 describe('config & token helpers', () => {
   const baseCfg = {
@@ -23,26 +20,36 @@ describe('config & token helpers', () => {
   } as any;
 
   beforeEach(() => {
+    // token helpers 在模块级别缓存 token，这里重置模块避免用例之间互相污染
+    vi.resetModules();
     vi.clearAllMocks();
   });
 
   describe('getConfig / isConfigured', () => {
-    it('should extract dingtalk-connector config from ClawdbotConfig', () => {
+    it('should extract dingtalk-connector config from ClawdbotConfig', async () => {
+      const { __testables } = await import('../../test');
+      const { getConfig } = __testables as any;
       const cfg = getConfig(baseCfg);
       expect(cfg).toEqual(baseCfg.channels['dingtalk-connector']);
     });
 
-    it('should return empty object when channel not configured', () => {
+    it('should return empty object when channel not configured', async () => {
+      const { __testables } = await import('../../test');
+      const { getConfig } = __testables as any;
       const cfg = getConfig({ channels: {} } as any);
       expect(cfg).toEqual({});
     });
 
-    it('should return empty object when cfg is undefined or empty', () => {
+    it('should return empty object when cfg is undefined or empty', async () => {
+      const { __testables } = await import('../../test');
+      const { getConfig } = __testables as any;
       expect(getConfig(undefined as any)).toEqual({});
       expect(getConfig({} as any)).toEqual({});
     });
 
-    it('should consider config valid only when clientId and clientSecret exist', () => {
+    it('should consider config valid only when clientId and clientSecret exist', async () => {
+      const { __testables } = await import('../../test');
+      const { isConfigured } = __testables as any;
       expect(isConfigured(baseCfg)).toBe(true);
       expect(isConfigured({ channels: {} } as any)).toBe(false);
       expect(
@@ -60,6 +67,8 @@ describe('config & token helpers', () => {
 
   describe('getAccessToken', () => {
     it('should request new token and cache it', async () => {
+      const { __testables } = await import('../../test');
+      const { getAccessToken } = __testables as any;
       const now = Date.now();
       vi.spyOn(Date, 'now').mockReturnValue(now);
 
@@ -81,6 +90,8 @@ describe('config & token helpers', () => {
 
   describe('getOapiAccessToken', () => {
     it('should return token when oapi returns success', async () => {
+      const { __testables } = await import('../../test');
+      const { getOapiAccessToken } = __testables as any;
       (axios.get as any).mockResolvedValue({
         data: {
           errcode: 0,
@@ -93,6 +104,8 @@ describe('config & token helpers', () => {
     });
 
     it('should return null when oapi returns error', async () => {
+      const { __testables } = await import('../../test');
+      const { getOapiAccessToken } = __testables as any;
       (axios.get as any).mockResolvedValue({
         data: {
           errcode: 123,
@@ -104,6 +117,8 @@ describe('config & token helpers', () => {
     });
 
     it('should return null when axios.get throws', async () => {
+      const { __testables } = await import('../../test');
+      const { getOapiAccessToken } = __testables as any;
       (axios.get as any).mockRejectedValue(new Error('network error'));
       const token = await getOapiAccessToken(baseCfg.channels['dingtalk-connector']);
       expect(token).toBeNull();
@@ -112,6 +127,8 @@ describe('config & token helpers', () => {
 
   describe('getUnionId', () => {
     it('should call oapi once and then use cache', async () => {
+      const { __testables } = await import('../../test');
+      const { getUnionId } = __testables as any;
       const log = {
         info: vi.fn(),
         error: vi.fn(),

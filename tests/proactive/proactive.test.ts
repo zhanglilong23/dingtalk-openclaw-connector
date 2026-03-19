@@ -47,7 +47,7 @@ describe('proactive message helpers', () => {
 
   describe('buildMsgPayload', () => {
     it('should build text message payload', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('text', 'Hello world');
@@ -57,7 +57,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should build markdown message payload', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('markdown', '# Title\nBody text', 'Title');
@@ -68,7 +68,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should extract title from markdown content when not provided', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('markdown', '# My Title\nBody');
@@ -77,7 +77,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should build link message payload from JSON string', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const linkData = JSON.stringify({ title: 'Link', messageUrl: 'https://example.com' });
@@ -88,7 +88,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should return error for invalid link JSON', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('link', 'not-valid-json');
@@ -97,7 +97,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should build actionCard message payload from JSON string', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const cardData = JSON.stringify({ title: 'Card', btns: [] });
@@ -107,7 +107,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should return error for invalid actionCard JSON', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('actionCard', 'not-valid-json');
@@ -116,7 +116,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should build image message payload', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('image', 'https://example.com/image.png');
@@ -126,7 +126,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should default to text for unknown message type', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { buildMsgPayload } = __testables as any;
 
       const result = buildMsgPayload('unknown' as any, 'content');
@@ -137,7 +137,7 @@ describe('proactive message helpers', () => {
 
   describe('sendNormalToUser', () => {
     it('should send text message to single user', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToUser } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -162,7 +162,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should send message to multiple users', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToUser } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -175,7 +175,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should return error for invalid message format', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToUser } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -187,7 +187,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should handle API error', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToUser } = __testables as any;
 
       mockAxiosPost.mockRejectedValue({ response: { data: { message: 'API error' } } });
@@ -201,7 +201,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should handle response without processQueryKey', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToUser } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: {} });
@@ -216,7 +216,7 @@ describe('proactive message helpers', () => {
 
   describe('sendNormalToGroup', () => {
     it('should send message to group', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToGroup } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -240,7 +240,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should send markdown to group', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToGroup } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -263,7 +263,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should handle API error', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendNormalToGroup } = __testables as any;
 
       mockAxiosPost.mockRejectedValue(new Error('Network error'));
@@ -279,7 +279,7 @@ describe('proactive message helpers', () => {
 
   describe('sendToUser', () => {
     it('should return error when clientId or clientSecret is missing', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       const result = await sendToUser({}, 'user123', 'Hello', { log });
@@ -289,7 +289,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should return error when userIds is empty', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -301,7 +301,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should use AI Card for single user by default', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ status: 200, data: {} });
@@ -316,7 +316,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should use normal message for multiple users', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -330,7 +330,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should fallback to normal message when AI Card fails', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       // AI Card creation fails
@@ -350,7 +350,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should not fallback when fallbackToNormal is false', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       mockAxiosPost.mockRejectedValue(new Error('Card failed'));
@@ -364,7 +364,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should use normal message when useAICard is false', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToUser } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -380,7 +380,7 @@ describe('proactive message helpers', () => {
 
   describe('sendToGroup', () => {
     it('should return error when clientId or clientSecret is missing', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToGroup } = __testables as any;
 
       const result = await sendToGroup({}, 'conv123', 'Hello', { log });
@@ -389,7 +389,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should return error when openConversationId is empty', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToGroup } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };
@@ -400,7 +400,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should use AI Card by default', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToGroup } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ status: 200, data: {} });
@@ -415,7 +415,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should fallback to normal message on AI Card failure', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendToGroup } = __testables as any;
 
       mockAxiosPost.mockImplementation((url: string) => {
@@ -436,7 +436,7 @@ describe('proactive message helpers', () => {
 
   describe('sendProactive', () => {
     it('should auto-detect markdown content type', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendProactive } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -449,7 +449,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should send to user via userId', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendProactive } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -462,7 +462,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should send to user via userIds array', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendProactive } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -475,7 +475,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should send to group via openConversationId', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendProactive } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({ data: { processQueryKey: 'key123' } });
@@ -488,7 +488,7 @@ describe('proactive message helpers', () => {
     });
 
     it('should return error when no target specified', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendProactive } = __testables as any;
 
       const config = { clientId: 'test', clientSecret: 'secret' };

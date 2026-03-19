@@ -19,7 +19,7 @@ describe('audio helpers', () => {
 
   describe('isAudioFile', () => {
     it('should return true for valid audio extensions', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { isAudioFile } = __testables as any;
 
       const audioExtensions = ['mp3', 'wav', 'amr', 'ogg', 'aac', 'flac', 'm4a'];
@@ -30,7 +30,7 @@ describe('audio helpers', () => {
     });
 
     it('should return false for non-audio extensions', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { isAudioFile } = __testables as any;
 
       const nonAudioExtensions = ['mp4', 'txt', 'pdf', 'docx', 'png', 'jpg', ''];
@@ -44,7 +44,7 @@ describe('audio helpers', () => {
     it('should return FFPROBE_PATH env variable when package not found', async () => {
       vi.resetModules();
       process.env.FFPROBE_PATH = '/custom/ffprobe';
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { getFfprobePath } = __testables as any;
 
       const path = getFfprobePath();
@@ -56,7 +56,7 @@ describe('audio helpers', () => {
       vi.resetModules();
       delete process.env.FFPROBE_PATH;
 
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { getFfprobePath } = __testables as any;
 
       const path = getFfprobePath();
@@ -66,7 +66,7 @@ describe('audio helpers', () => {
 
   describe('extractAudioDuration', () => {
     it('should return duration in milliseconds on success', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractAudioDuration } = __testables as any;
 
       mockExecFile.mockImplementation((bin: string, args: string[], options: any, callback: Function) => {
@@ -79,7 +79,7 @@ describe('audio helpers', () => {
     });
 
     it('should return null when execFile fails', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractAudioDuration } = __testables as any;
 
       mockExecFile.mockImplementation((bin: string, args: string[], options: any, callback: Function) => {
@@ -92,7 +92,7 @@ describe('audio helpers', () => {
     });
 
     it('should return null when JSON parse fails', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractAudioDuration } = __testables as any;
 
       mockExecFile.mockImplementation((bin: string, args: string[], options: any, callback: Function) => {
@@ -105,7 +105,7 @@ describe('audio helpers', () => {
     });
 
     it('should return null when duration is not a number', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractAudioDuration } = __testables as any;
 
       mockExecFile.mockImplementation((bin: string, args: string[], options: any, callback: Function) => {
@@ -118,7 +118,7 @@ describe('audio helpers', () => {
     });
 
     it('should return null when format is missing', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { extractAudioDuration } = __testables as any;
 
       mockExecFile.mockImplementation((bin: string, args: string[], options: any, callback: Function) => {
@@ -133,7 +133,7 @@ describe('audio helpers', () => {
 
   describe('processAudioMarkers', () => {
     it('should return original content when oapiToken is null', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processAudioMarkers } = __testables as any;
 
       const content = 'hello [DINGTALK_AUDIO]{"path":"/tmp/audio.mp3"}[/DINGTALK_AUDIO]';
@@ -144,7 +144,7 @@ describe('audio helpers', () => {
     });
 
     it('should return cleaned content when no audio markers', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processAudioMarkers } = __testables as any;
 
       const content = 'plain text without markers';
@@ -154,7 +154,7 @@ describe('audio helpers', () => {
     });
 
     it('should handle invalid JSON in audio markers', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processAudioMarkers } = __testables as any;
 
       const content = 'text [DINGTALK_AUDIO]{invalid-json}[/DINGTALK_AUDIO]';
@@ -165,7 +165,7 @@ describe('audio helpers', () => {
     });
 
     it('should handle non-existent audio files', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { processAudioMarkers } = __testables as any;
 
       // Mock fs.existsSync to return false
@@ -183,7 +183,7 @@ describe('audio helpers', () => {
 
   describe('sendAudioMessage', () => {
     it('should send audio message with default duration', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendAudioMessage } = __testables as any;
 
       const mockAxios = await import('axios');
@@ -196,7 +196,7 @@ describe('audio helpers', () => {
     });
 
     it('should send audio message with provided duration', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendAudioMessage } = __testables as any;
 
       const mockAxios = await import('axios');
@@ -209,7 +209,7 @@ describe('audio helpers', () => {
     });
 
     it('should handle send failure', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendAudioMessage } = __testables as any;
 
       const mockAxios = await import('axios');
@@ -224,7 +224,7 @@ describe('audio helpers', () => {
 
   describe('sendAudioProactive', () => {
     it('should send audio to user via proactive API', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendAudioProactive } = __testables as any;
 
       const mockAxios = await import('axios');
@@ -241,7 +241,7 @@ describe('audio helpers', () => {
     });
 
     it('should send audio to group via proactive API', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendAudioProactive } = __testables as any;
 
       const mockAxios = await import('axios');
@@ -258,7 +258,7 @@ describe('audio helpers', () => {
     });
 
     it('should use provided duration in proactive send', async () => {
-      const { __testables } = await import('../../plugin');
+      const { __testables } = await import('../../test');
       const { sendAudioProactive } = __testables as any;
 
       const mockAxios = await import('axios');

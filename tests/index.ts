@@ -1,40 +1,41 @@
 /**
- * Test entry point for DingTalk OpenClaw Connector
- * 
- * This file exports lightweight, self-contained test utilities.
+ * Test utilities for DingTalk OpenClaw Connector
  *
- * Note: keep this file dependency-free (no missing re-exports), so importing it
- * never breaks the test build.
+ * Shared mock factories and helpers used across unit test files.
  */
 
 import { vi } from 'vitest';
+import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
 
 /**
- * Test configuration
+ * Create a mock ClawdbotConfig with dingtalk-connector channel configured.
  */
-export const testConfig = {
-  timeout: 10000,
-  retries: 3,
-  logLevel: 'info',
-};
-
-/**
- * Create a mock config for testing
- */
-export function createMockConfig(overrides: Partial<{
+export function createMockClawdbotConfig(overrides: Partial<{
   clientId: string;
   clientSecret: string;
-  webhook?: string;
-}> = {}) {
+  enabled: boolean;
+  allowFrom: (string | number)[];
+  groupAllowFrom: (string | number)[];
+  groupPolicy: string;
+  groups: Record<string, any>;
+}> = {}): ClawdbotConfig {
   return {
-    clientId: overrides.clientId || 'test-client-id',
-    clientSecret: overrides.clientSecret || 'test-client-secret',
-    webhook: overrides.webhook,
-  };
+    channels: {
+      'dingtalk-connector': {
+        enabled: overrides.enabled ?? true,
+        clientId: overrides.clientId ?? 'test-client-id',
+        clientSecret: overrides.clientSecret ?? 'test-client-secret',
+        ...(overrides.allowFrom ? { allowFrom: overrides.allowFrom } : {}),
+        ...(overrides.groupAllowFrom ? { groupAllowFrom: overrides.groupAllowFrom } : {}),
+        ...(overrides.groupPolicy ? { groupPolicy: overrides.groupPolicy } : {}),
+        ...(overrides.groups ? { groups: overrides.groups } : {}),
+      },
+    },
+  } as ClawdbotConfig;
 }
 
 /**
- * Create a mock logger for testing
+ * Create a mock logger with vi.fn() stubs.
  */
 export function createMockLogger() {
   return {
@@ -44,86 +45,3 @@ export function createMockLogger() {
     debug: vi.fn(),
   };
 }
-
-/**
- * Create mock axios response
- */
-export function createMockAxiosResponse(data: any, status = 200) {
-  return {
-    data,
-    status,
-    statusText: 'OK',
-    headers: {},
-    config: {},
-  };
-}
-
-/**
- * Create mock file info
- */
-export function createMockFileInfo(overrides: Partial<{
-  path: string;
-  fileName: string;
-  fileType: string;
-}> = {}) {
-  return {
-    path: overrides.path || '/tmp/test-file.pdf',
-    fileName: overrides.fileName || 'test-file.pdf',
-    fileType: overrides.fileType || 'pdf',
-  };
-}
-
-/**
- * Create mock video metadata
- */
-export function createMockVideoMetadata() {
-  return {
-    duration: 60,
-    width: 1920,
-    height: 1080,
-  };
-}
-
-/**
- * Create mock target
- */
-export function createMockUserTarget(userId = 'user123') {
-  return {
-    type: 'user' as const,
-    userId,
-  };
-}
-
-export function createMockGroupTarget(openConversationId = 'conv123') {
-  return {
-    type: 'group' as const,
-    openConversationId,
-  };
-}
-
-/**
- * Wait for condition
- */
-export async function waitFor(
-  condition: () => boolean,
-  timeout = 5000,
-  interval = 100
-): Promise<void> {
-  const start = Date.now();
-  while (!condition()) {
-    if (Date.now() - start > timeout) {
-      throw new Error('Timeout waiting for condition');
-    }
-    await new Promise((resolve) => setTimeout(resolve, interval));
-  }
-}
-
-/**
- * Sleep utility
- */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Intentionally no re-exports here: this repo doesn't maintain a shared
-// `tests/helpers` / `tests/mocks` layer yet.

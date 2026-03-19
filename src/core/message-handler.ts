@@ -94,7 +94,7 @@ interface ExtractedMessage {
   atMobiles: string[];
 }
 
-function extractMessageContent(data: any): ExtractedMessage {
+export function extractMessageContent(data: any): ExtractedMessage {
   const msgtype = data.msgtype || 'text';
   switch (msgtype) {
     case 'text': {
@@ -229,7 +229,7 @@ function extractMessageContent(data: any): ExtractedMessage {
 
 // ============ 图片下载 ============
 
-async function downloadImageToFile(
+export async function downloadImageToFile(
   downloadUrl: string,
   agentWorkspaceDir: string,
   log?: any,
@@ -258,7 +258,7 @@ async function downloadImageToFile(
   }
 }
 
-async function downloadMediaByCode(
+export async function downloadMediaByCode(
   downloadCode: string,
   config: DingtalkConfig,
   agentWorkspaceDir: string,
@@ -290,7 +290,7 @@ async function downloadMediaByCode(
   }
 }
 
-async function getFileDownloadUrl(
+export async function getFileDownloadUrl(
   downloadCode: string,
   fileName: string,
   config: DingtalkConfig,
@@ -328,7 +328,7 @@ async function getFileDownloadUrl(
 /**
  * 下载文件到本地
  */
-async function downloadFileToLocal(
+export async function downloadFileToLocal(
   downloadUrl: string,
   fileName: string,
   agentWorkspaceDir: string,

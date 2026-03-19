@@ -83,7 +83,7 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
   const monitorPromises: Promise<void>[] = [];
   for (const account of accounts) {
     if (opts.abortSignal?.aborted) {
-      log("dingtalk-connector: abort signal received during startup preflight; stopping startup");
+      log?.info?.("dingtalk-connector: abort signal received during startup preflight; stopping startup");
       break;
     }
 

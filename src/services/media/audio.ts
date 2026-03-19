@@ -3,9 +3,9 @@
  * 支持音频消息发送
  */
 
-import type { Logger } from 'openclaw/plugin-sdk';
 import type { DingtalkConfig } from '../../types/index.ts';
 import { AUDIO_MARKER_PATTERN, toLocalPath, uploadMediaToDingTalk } from './common.ts';
+import * as fs from 'fs';
 
 /**
  * 提取音频标记并发送音频消息
@@ -15,7 +15,7 @@ export async function processAudioMarkers(
   sessionWebhook: string,
   config: DingtalkConfig,
   oapiToken: string | null,
-  log?: Logger,
+  log?: any,
   useProactiveApi: boolean = false,
   target?: any,
 ): Promise<string> {
@@ -27,35 +27,28 @@ export async function processAudioMarkers(
   }
 
   const matches = [...content.matchAll(AUDIO_MARKER_PATTERN)];
-  const audioPaths: string[] = [];
+  if (matches.length === 0) return content;
 
-  for (const match of matches) {
-    try {
-      const audioData = JSON.parse(match[1]);
-      const rawPath = audioData.path;
-      const absPath = toLocalPath(rawPath);
-      audioPaths.push(absPath);
-    } catch (err) {
-      log?.warn?.(`${logPrefix} 解析音频标记失败：${match[1]}`);
-    }
-  }
-
-  if (audioPaths.length === 0) {
-    return content;
-  }
-
-  log?.info?.(`${logPrefix} 检测到 ${audioPaths.length} 个音频，开始上传...`);
+  log?.info?.(`${logPrefix} 检测到 ${matches.length} 个音频，开始上传...`);
 
   let result = content;
-  for (const audioPath of audioPaths) {
-    const mediaId = await uploadMediaToDingTalk(audioPath, 'voice', oapiToken, 20 * 1024 * 1024, log);
-    if (mediaId) {
-      result = result.replace(
-        `[DINGTALK_AUDIO]${JSON.stringify({ path: audioPath })}[/DINGTALK_AUDIO]`,
-        `[音频已上传：${mediaId}]`,
-      );
+  for (const match of matches) {
+    const full = match[0];
+    try {
+      const audioData = JSON.parse(match[1]);
+      const absPath = toLocalPath(audioData.path);
+      if (!fs.existsSync(absPath)) {
+        log?.warn?.(`${logPrefix} 音频文件不存在：${absPath}`);
+        result = result.replace(full, '⚠️ 音频文件不存在');
+        continue;
+      }
+      const mediaId = await uploadMediaToDingTalk(absPath, 'voice', oapiToken, 20 * 1024 * 1024, log);
+      result = result.replace(full, mediaId ? `[音频已上传：${mediaId}]` : '⚠️ 音频上传失败');
+    } catch {
+      log?.warn?.(`${logPrefix} 解析音频标记失败：${match[1]}`);
+      result = result.replace(full, '');
     }
   }
 
-  return result;
+  return result.trim();
 }

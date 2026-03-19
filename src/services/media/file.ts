@@ -4,14 +4,13 @@
  */
 
 import * as fs from 'fs';
-import type { Logger } from 'openclaw/plugin-sdk';
 import type { DingtalkConfig } from '../../types/index.ts';
 import { FILE_MARKER_PATTERN, toLocalPath, uploadMediaToDingTalk, TEXT_FILE_EXTENSIONS } from './common.ts';
 
 /**
  * 解析文档文件，提取文本内容
  */
-export async function parseDocumentFile(filePath: string, log?: Logger): Promise<string | null> {
+export async function parseDocumentFile(filePath: string, log?: any): Promise<string | null> {
   try {
     const ext = '.' + filePath.split('.').pop()?.toLowerCase();
     
@@ -37,7 +36,7 @@ export async function processFileMarkers(
   sessionWebhook: string,
   config: DingtalkConfig,
   oapiToken: string | null,
-  log?: Logger,
+  log?: any,
   useProactiveApi: boolean = false,
   target?: any,
 ): Promise<string> {
@@ -49,33 +48,21 @@ export async function processFileMarkers(
   }
 
   const matches = [...content.matchAll(FILE_MARKER_PATTERN)];
-  const filePaths: string[] = [];
+  if (matches.length === 0) return content;
 
-  for (const match of matches) {
-    try {
-      const fileData = JSON.parse(match[1]);
-      const rawPath = fileData.path;
-      const absPath = toLocalPath(rawPath);
-      filePaths.push(absPath);
-    } catch (err) {
-      log?.warn?.(`${logPrefix} 解析文件标记失败：${match[1]}`);
-    }
-  }
-
-  if (filePaths.length === 0) {
-    return content;
-  }
-
-  log?.info?.(`${logPrefix} 检测到 ${filePaths.length} 个文件，开始上传...`);
+  log?.info?.(`${logPrefix} 检测到 ${matches.length} 个文件，开始上传...`);
 
   let result = content;
-  for (const filePath of filePaths) {
-    const mediaId = await uploadMediaToDingTalk(filePath, 'file', oapiToken, 20 * 1024 * 1024, log);
-    if (mediaId) {
-      result = result.replace(
-        `[DINGTALK_FILE]${JSON.stringify({ path: filePath })}[/DINGTALK_FILE]`,
-        `[文件已上传：${mediaId}]`,
-      );
+  for (const match of matches) {
+    const full = match[0];
+    try {
+      const fileData = JSON.parse(match[1]);
+      const absPath = toLocalPath(fileData.path);
+      const mediaId = await uploadMediaToDingTalk(absPath, 'file', oapiToken, 20 * 1024 * 1024, log);
+      result = result.replace(full, mediaId ? `[文件已上传：${mediaId}]` : '⚠️ 文件上传失败');
+    } catch {
+      log?.warn?.(`${logPrefix} 解析文件标记失败：${match[1]}`);
+      result = result.replace(full, '');
     }
   }
 
