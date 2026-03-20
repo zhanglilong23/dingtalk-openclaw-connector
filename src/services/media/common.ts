@@ -4,12 +4,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import axios from 'axios';
 import { createLogger } from '../../utils/logger.ts';
 import { CHUNK_CONFIG } from './chunk-upload.ts';
-
-// 🔧 禁用 axios 代理，防止 HTTP 代理导致 HTTPS 请求失败
-axios.defaults.proxy = false;
+import { dingtalkOapiHttp, dingtalkUploadHttp } from '../../utils/http-client.ts';
 
 // ============ 常量 ============
 
@@ -127,10 +124,15 @@ export async function uploadMediaToDingTalk(
     const uploadType = mediaType;
 
     log?.info?.(`上传文件：${absPath} (${fileSizeMB}MB), uploadType=${uploadType}`);
-    const resp = await axios.post(
-      `${DINGTALK_OAPI}/media/upload?access_token=${oapiToken}&type=${uploadType}`,
-      form,
-      { headers: form.getHeaders(), timeout: 60_000 },
+    const resp = await dingtalkUploadHttp.post(
+      `${DINGTALK_OAPI}/media/upload`,
+      formData,
+      {
+        params: { access_token: oapiToken, type: mediaType },
+        headers: formData.getHeaders(),
+        timeout: 60_000,
+        maxBodyLength: Infinity,
+      },
     );
 
     const mediaId = resp.data?.media_id;

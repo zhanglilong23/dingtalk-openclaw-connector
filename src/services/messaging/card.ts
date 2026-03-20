@@ -3,14 +3,9 @@
  * 支持 AI Card 创建、流式更新、完成
  */
 
-import axios from "axios";
 import type { DingtalkConfig } from "../../types/index.ts";
 import { DINGTALK_API, getAccessToken } from "../../utils/token.ts";
-
-// 🔧 禁用 axios 代理，防止 HTTP 代理导致 HTTPS 请求失败
-// 问题：环境变量中的 http_proxy/https_proxy 可能使用 HTTP 协议
-// 解决：禁用代理，确保直接 HTTPS 连接
-axios.defaults.proxy = false;
+import { dingtalkHttp } from "../../utils/http-client.ts";
 
 // ============ 常量 ============
 
@@ -144,7 +139,7 @@ export async function createAICardForTarget(
       imRobotOpenSpaceModel: { supportForward: true },
     };
 
-    const createResp = await axios.post(
+    const createResp = await dingtalkHttp.post(
       `${DINGTALK_API}/v1.0/card/instances`,
       createBody,
       {
@@ -162,7 +157,7 @@ export async function createAICardForTarget(
       String(config.clientId ?? ""),
     );
 
-    const deliverResp = await axios.post(
+    const deliverResp = await dingtalkHttp.post(
       `${DINGTALK_API}/v1.0/card/instances/deliver`,
       deliverBody,
       {
@@ -212,7 +207,7 @@ export async function streamAICard(
       },
     };
     try {
-      const statusResp = await axios.put(
+      const statusResp = await dingtalkHttp.put(
         `${DINGTALK_API}/v1.0/card/instances`,
         statusBody,
         {
@@ -247,7 +242,7 @@ export async function streamAICard(
     `[DingTalk][AICard] PUT /v1.0/card/streaming contentLen=${content.length} isFinalize=${finished}`,
   );
   try {
-    const streamResp = await axios.put(
+    const streamResp = await dingtalkHttp.put(
       `${DINGTALK_API}/v1.0/card/streaming`,
       body,
       {
@@ -298,7 +293,7 @@ export async function finishAICard(
   };
 
   try {
-    const finishResp = await axios.put(
+    const finishResp = await dingtalkHttp.put(
       `${DINGTALK_API}/v1.0/card/instances`,
       body,
       {

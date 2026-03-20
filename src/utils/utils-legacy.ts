@@ -144,8 +144,8 @@ export async function getAccessToken(config: DingtalkConfig): Promise<string> {
     return cached.token;
   }
 
-  const axios = (await import('axios')).default;
-  const response = await axios.post(`${DINGTALK_API}/v1.0/oauth2/accessToken`, {
+  const { dingtalkHttp } = await import('./http-client.ts');
+  const response = await dingtalkHttp.post(`${DINGTALK_API}/v1.0/oauth2/accessToken`, {
     appKey: config.clientId,
     appSecret: config.clientSecret,
   });
@@ -168,8 +168,8 @@ export async function getOapiAccessToken(config: DingtalkConfig): Promise<string
       return cached.token;
     }
 
-    const axios = (await import('axios')).default;
-    const resp = await axios.get(`${DINGTALK_OAPI}/gettoken`, {
+    const { dingtalkOapiHttp } = await import('./http-client.ts');
+    const resp = await dingtalkOapiHttp.get(`${DINGTALK_OAPI}/gettoken`, {
       params: { appkey: config.clientId, appsecret: config.clientSecret },
     });
     if (resp.data?.errcode === 0 && resp.data?.access_token) {
@@ -206,8 +206,8 @@ export async function getUnionId(
       log?.error?.('[DingTalk] getUnionId: 无法获取 oapi access_token');
       return null;
     }
-    const axios = (await import('axios')).default;
-    const resp = await axios.get(`${DINGTALK_OAPI}/user/get`, {
+    const { dingtalkOapiHttp } = await import('./http-client.ts');
+    const resp = await dingtalkOapiHttp.get(`${DINGTALK_OAPI}/user/get`, {
       params: { access_token: token, userid: staffId },
       timeout: 10_000,
     });
@@ -374,8 +374,8 @@ export async function addEmotionReply(config: DingtalkConfig, data: any, log?: a
   if (!data.msgId || !data.conversationId) return;
   try {
     const token = await getAccessToken(config);
-    const axios = (await import('axios')).default;
-    await axios.post(`${DINGTALK_API}/v1.0/robot/emotion/reply`, {
+    const { dingtalkHttp } = await import('./http-client.ts');
+    await dingtalkHttp.post(`${DINGTALK_API}/v1.0/robot/emotion/reply`, {
       robotCode: data.robotCode ?? config.clientId,
       openMsgId: data.msgId,
       openConversationId: data.conversationId,
@@ -404,8 +404,8 @@ export async function recallEmotionReply(config: DingtalkConfig, data: any, log?
   if (!data.msgId || !data.conversationId) return;
   try {
     const token = await getAccessToken(config);
-    const axios = (await import('axios')).default;
-    await axios.post(`${DINGTALK_API}/v1.0/robot/emotion/recall`, {
+    const { dingtalkHttp } = await import('./http-client.ts');
+    await dingtalkHttp.post(`${DINGTALK_API}/v1.0/robot/emotion/recall`, {
       robotCode: data.robotCode ?? config.clientId,
       openMsgId: data.msgId,
       openConversationId: data.conversationId,

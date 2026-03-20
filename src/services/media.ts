@@ -3,14 +3,11 @@
  * 支持图片、视频、音频、文件的上传和下载
  */
 
-import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DingtalkConfig } from '../types/index.ts';
 import { DINGTALK_OAPI, getOapiAccessToken } from '../utils/index.ts';
-
-// 🔧 禁用 axios 代理，防止 HTTP 代理导致 HTTPS 请求失败
-axios.defaults.proxy = false;
+import { dingtalkOapiHttp } from '../utils/http-client.ts';
 
 // ============ 常量 ============
 
@@ -141,7 +138,7 @@ export async function uploadMediaToDingTalk(
     });
 
     log?.info?.(`上传文件: ${absPath} (${fileSizeMB}MB)`);
-    const resp = await axios.post(
+    const resp = await dingtalkOapiHttp.post(
       `${DINGTALK_OAPI}/media/upload?access_token=${oapiToken}&type=${mediaType === 'video' ? 'file' : mediaType}`,
       form,
       { headers: form.getHeaders(), timeout: 60_000 },
@@ -726,7 +723,7 @@ async function sendVideoMessage(
     };
 
     log?.info?.(`发送视频消息: ${fileName}`);
-    const resp = await axios.post(sessionWebhook, videoMessage, {
+    const resp = await dingtalkHttp.post(sessionWebhook, videoMessage, {
       headers: {
         'x-acs-dingtalk-access-token': token,
         'Content-Type': 'application/json',
@@ -785,13 +782,13 @@ export async function sendVideoProactive(
     log?.info?.(`Video[Proactive] 发送视频消息`);
     log?.info?.(`Video[Proactive] 请求体: ${JSON.stringify(body, null, 2)}`);
     log?.info?.(`Video[Proactive] endpoint: ${endpoint}`);
-    const resp = await axios.post(endpoint, body, {
+    const resp = await dingtalkHttp.post(endpoint, body, {
       headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
       timeout: 10_000,
     });
 
     log?.info?.(`Video[Proactive] 钉钉 API 响应: ${JSON.stringify(resp.data, null, 2)}`);
-    
+
     if (resp.data?.processQueryKey) {
       log?.info?.(`Video[Proactive] 视频消息发送成功`);
     } else {
@@ -830,7 +827,7 @@ async function sendAudioMessage(
     };
 
     log?.info?.(`发送语音消息: ${fileName}`);
-    const resp = await axios.post(sessionWebhook, audioMessage, {
+    const resp = await dingtalkHttp.post(sessionWebhook, audioMessage, {
       headers: {
         'x-acs-dingtalk-access-token': token,
         'Content-Type': 'application/json',
@@ -886,7 +883,7 @@ export async function sendAudioProactive(
     }
 
     log?.info?.(`Audio[Proactive] 发送音频消息: ${fileName}`);
-    const resp = await axios.post(endpoint, body, {
+    const resp = await dingtalkHttp.post(endpoint, body, {
       headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
       timeout: 10_000,
     });
@@ -926,7 +923,7 @@ async function sendFileMessage(
     };
 
     log?.info?.(`发送文件消息: ${fileInfo.fileName}`);
-    const resp = await axios.post(sessionWebhook, fileMessage, {
+    const resp = await dingtalkHttp.post(sessionWebhook, fileMessage, {
       headers: {
         'x-acs-dingtalk-access-token': token,
         'Content-Type': 'application/json',
@@ -981,15 +978,15 @@ export async function sendFileProactive(
     }
 
     log?.info?.(`File[Proactive] 发送文件消息: ${fileInfo.fileName}`);
-    const resp = await axios.post(endpoint, body, {
+    const resp = await dingtalkHttp.post(endpoint, body, {
       headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
       timeout: 10_000,
     });
 
     if (resp.data?.processQueryKey) {
-      log?.info?.(`File[Proactive] 文件消息发送成功: ${fileInfo.fileName}`);
+      log?.info?.(`File[Proactive] 发送成功: processQueryKey=${resp.data.processQueryKey}`);
     } else {
-      log?.warn?.(`File[Proactive] 文件消息发送响应异常: ${JSON.stringify(resp.data)}`);
+      log?.warn?.(`File[Proactive] 发送失败: ${JSON.stringify(resp.data)}`);
     }
   } catch (err: any) {
     log?.error?.(`File[Proactive] 发送文件消息失败: ${fileInfo.fileName}, 错误: ${err.message}`);

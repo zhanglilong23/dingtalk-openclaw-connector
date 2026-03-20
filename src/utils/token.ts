@@ -3,8 +3,8 @@
  * 支持钉钉 API 和 OAPI 的 Token 获取和缓存
  */
 
-import axios from 'axios';
 import type { DingtalkConfig } from '../types/index.ts';
+import { dingtalkHttp, dingtalkOapiHttp } from './http-client.ts';
 
 // ============ 常量 ============
 
@@ -40,7 +40,7 @@ export async function getAccessToken(config: DingtalkConfig): Promise<string> {
     return cached.token;
   }
 
-  const response = await axios.post(`${DINGTALK_API}/v1.0/oauth2/accessToken`, {
+  const response = await dingtalkHttp.post(`${DINGTALK_API}/v1.0/oauth2/accessToken`, {
     appKey: config.clientId,
     appSecret: config.clientSecret,
   });
@@ -66,7 +66,7 @@ export async function getOapiAccessToken(config: DingtalkConfig): Promise<string
       return cached.token;
     }
 
-    const resp = await axios.get(`${DINGTALK_OAPI}/gettoken`, {
+    const resp = await dingtalkOapiHttp.get(`${DINGTALK_OAPI}/gettoken`, {
       params: { appkey: config.clientId, appsecret: config.clientSecret },
     });
 

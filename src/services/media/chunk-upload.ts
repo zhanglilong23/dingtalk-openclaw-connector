@@ -8,13 +8,10 @@
  * - 提交事务：https://open.dingtalk.com/document/development/submit-a-file-upload-transaction
  */
 
-import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../../utils/logger.ts';
-
-// 🔧 禁用 axios 代理，防止 HTTP 代理导致 HTTPS 请求失败
-axios.defaults.proxy = false;
+import { dingtalkOapiHttp, dingtalkUploadHttp } from '../../utils/http-client.ts';
 
 const DINGTALK_OAPI = 'https://oapi.dingtalk.com';
 
@@ -70,17 +67,21 @@ export async function enableUploadTransaction(
     form.append('file_name', fileName);
     form.append('file_size', fileSize.toString());
 
-    const resp = await axios.post<UploadTransactionResponse>(
-      `${DINGTALK_OAPI}/file/upload/transaction/enabled`,
-      form,
-      {
-        params: {
-          access_token: oapiToken,
-        },
-        headers: form.getHeaders(),
-        timeout: 30_000,
-      }
-    );
+    const uploadResp = await dingtalkUploadHttp.post(
+  `${DINGTALK_OAPI}/cspace/add_chunk`,
+  chunkData,
+  {
+    params: {
+      access_token: oapiToken,
+      agent_id: config.agentId || config.clientId,
+      transaction_id: transactionId,
+      chunk_sequence: i,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+    timeout: 60_000,
+    maxBodyLength: Infinity,
+  },
+);
 
     if (resp.data.errcode === 0) {
       log.info(`事务开启成功，upload_id: ${resp.data.upload_id}`);
@@ -128,15 +129,20 @@ export async function uploadFileBlock(
       contentType: 'application/octet-stream',
     });
 
-    const resp = await axios.post<UploadBlockResponse>(
-      `${DINGTALK_OAPI}/file/upload/block`,
-      form,
-      {
-        params: { access_token: oapiToken },
-        headers: form.getHeaders(),
-        timeout: 120_000, // 大块上传需要更长时间
-      }
-    );
+    const commitResp = await dingtalkOapiHttp.post(
+  `${DINGTALK_OAPI}/cspace/commit`,
+  null,
+  {
+    params: {
+      access_token: oapiToken,
+      agent_id: config.agentId || config.clientId,
+      transaction_id: transactionId,
+      file_size: fileSize,
+      chunk_numbers: totalChunks,
+    },
+    timeout: 30_000,
+  },
+);
 
     if (resp.data.errcode === 0) {
       log.info(`块 ${chunkNumber} 上传成功`);
@@ -169,7 +175,7 @@ export async function submitUploadTransaction(
   try {
     log.info(`提交上传事务：${uploadId}`);
 
-    const resp = await axios.get<SubmitTransactionResponse>(
+    const resp = await dingtalkOapiHttp.get<SubmitTransactionResponse>(
       `${DINGTALK_OAPI}/file/upload/transaction/submit`,
       {
         params: {

@@ -43,7 +43,7 @@ import {
 import { sendProactive, type AICardTarget } from "../services/messaging/index.ts";
 import { createDingtalkReplyDispatcher, normalizeSlashCommand } from "../reply-dispatcher.ts";
 import { getDingtalkRuntime } from "../runtime.ts";
-import axios from 'axios';
+import { dingtalkHttp } from '../utils/http-client.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -61,6 +61,33 @@ const AICardStatus = {
   EXECUTING: '4',
   FAILED: '5',
 } as const;
+
+// ============ 会话级别消息队列 ============
+
+/**
+ * 会话消息队列管理
+ * 用于确保同一会话的消息按顺序处理，避免并发冲突导致AI返回空响应
+ */
+const sessionQueues = new Map<string, Promise<void>>();
+
+/**
+ * 清理过期的会话队列（超过5分钟没有新消息的会话）
+ */
+const sessionLastActivity = new Map<string, number>();
+const SESSION_QUEUE_TTL = 5 * 60 * 1000; // 5分钟
+
+function cleanupExpiredSessionQueues(): void {
+  const now = Date.now();
+  for (const [sessionId, lastActivity] of sessionLastActivity.entries()) {
+    if (now - lastActivity > SESSION_QUEUE_TTL) {
+      sessionQueues.delete(sessionId);
+      sessionLastActivity.delete(sessionId);
+    }
+  }
+}
+
+// 每分钟清理一次过期队列
+setInterval(cleanupExpiredSessionQueues, 60_000);
 
 // ============ 类型定义 ============
 
@@ -236,7 +263,7 @@ export async function downloadImageToFile(
 ): Promise<string | null> {
   try {
     log?.info?.(`开始下载图片: ${downloadUrl.slice(0, 100)}...`);
-    const resp = await axios.get(downloadUrl, {
+    const resp = await dingtalkHttp.get(downloadUrl, {
       responseType: 'arraybuffer',
       timeout: 30_000,
     });
@@ -268,7 +295,7 @@ export async function downloadMediaByCode(
     const token = await getAccessToken(config);
     log?.info?.(`通过 downloadCode 下载媒体: ${downloadCode.slice(0, 30)}...`);
 
-    const resp = await axios.post(
+    const resp = await dingtalkHttp.post(
       `${DINGTALK_API}/v1.0/robot/messageFiles/download`,
       { downloadCode, robotCode: config.clientId },
       {
@@ -300,7 +327,7 @@ export async function getFileDownloadUrl(
     const token = await getAccessToken(config);
     log?.info?.(`获取文件下载链接: ${fileName}`);
 
-    const resp = await axios.post(
+    const resp = await dingtalkHttp.post(
       `${DINGTALK_API}/v1.0/robot/messageFiles/download`,
       { downloadCode, robotCode: config.clientId },
       {
@@ -336,7 +363,7 @@ export async function downloadFileToLocal(
 ): Promise<string | null> {
   try {
     log?.info?.(`开始下载文件: ${fileName}`);
-    const resp = await axios.get(downloadUrl, {
+    const resp = await dingtalkHttp.get(downloadUrl, {
       responseType: 'arraybuffer',
       timeout: 60_000, // 文件可能较大，增加超时时间
     });
@@ -472,7 +499,10 @@ interface HandleMessageParams {
   cfg: ClawdbotConfig;
 }
 
-export async function handleDingTalkMessage(params: HandleMessageParams): Promise<void> {
+/**
+ * 内部消息处理函数（实际执行消息处理逻辑）
+ */
+async function handleDingTalkMessageInternal(params: HandleMessageParams): Promise<void> {
   const { accountId, config, data, sessionWebhook, runtime, log, cfg } = params;
 
   const content = extractMessageContent(data);
@@ -1117,7 +1147,7 @@ export async function handleDingTalkMessage(params: HandleMessageParams): Promis
       };
       if (!isDirect) body.at = { atUserIds: [senderId], isAtAll: false };
       
-      await axios.post(sessionWebhook, body, {
+      await dingtalkHttp.post(sessionWebhook, body, {
         headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
       });
     } catch (fallbackErr: any) {
@@ -1132,6 +1162,57 @@ export async function handleDingTalkMessage(params: HandleMessageParams): Promis
   } catch (err: any) {
     log?.warn?.(`撤回表情异常: ${err.message}`);
   }
+}
+
+/**
+ * 消息处理入口函数（带队列管理）
+ * 确保同一会话的消息按顺序处理，避免并发冲突
+ */
+export async function handleDingTalkMessage(params: HandleMessageParams): Promise<void> {
+  const { data, log } = params;
+  
+  // 构建会话标识（与会话上下文保持一致）
+  const isDirect = data.conversationType === '1';
+  const senderId = data.senderStaffId || data.senderId;
+  const conversationId = data.conversationId;
+  const sessionId = isDirect ? senderId : conversationId;
+  
+  if (!sessionId) {
+    log?.warn?.('无法构建会话标识，跳过队列管理');
+    return handleDingTalkMessageInternal(params);
+  }
+  
+  // 更新会话活跃时间
+  sessionLastActivity.set(sessionId, Date.now());
+  
+  // 获取该会话的上一个处理任务
+  const previousTask = sessionQueues.get(sessionId) || Promise.resolve();
+  
+  // 创建当前消息的处理任务
+  const currentTask = previousTask
+    .then(async () => {
+      log?.info?.(`[队列] 开始处理消息，sessionId=${sessionId}`);
+      await handleDingTalkMessageInternal(params);
+      log?.info?.(`[队列] 消息处理完成，sessionId=${sessionId}`);
+    })
+    .catch((err: any) => {
+      log?.error?.(`[队列] 消息处理异常，sessionId=${sessionId}, error=${err.message}`);
+      // 不抛出错误，避免阻塞后续消息
+    })
+    .finally(() => {
+      // 如果当前任务是队列中的最后一个任务，清理队列
+      if (sessionQueues.get(sessionId) === currentTask) {
+        sessionQueues.delete(sessionId);
+        log?.info?.(`[队列] 队列已清空，sessionId=${sessionId}`);
+      }
+    });
+  
+  // 更新队列
+  sessionQueues.set(sessionId, currentTask);
+  log?.info?.(`[队列] 消息已加入队列，sessionId=${sessionId}, 队列大小=${sessionQueues.size}`);
+  
+  // 不等待任务完成，让消息异步处理
+  // 这样可以立即返回，不阻塞 WebSocket 消息接收
 }
 
 // handleDingTalkMessage 已在函数定义处直接导出

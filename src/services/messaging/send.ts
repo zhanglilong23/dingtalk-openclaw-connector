@@ -3,12 +3,9 @@
  * 支持 Markdown、文本、链接等消息类型
  */
 
-import axios from 'axios';
 import type { DingtalkConfig } from '../../types/index.ts';
 import { DINGTALK_API, getAccessToken } from '../../utils/token.ts';
-
-// 🔧 禁用 axios 代理，防止 HTTP 代理导致 HTTPS 请求失败
-axios.defaults.proxy = false;
+import { dingtalkHttp } from '../../utils/http-client.ts';
 
 /** 消息类型枚举 */
 export type DingTalkMsgType = 'text' | 'markdown' | 'link' | 'actionCard' | 'image';
@@ -61,7 +58,7 @@ export async function sendMarkdownMessage(
     };
   }
 
-  const resp = await axios.post(sessionWebhook, body, {
+  const resp = await dingtalkHttp.post(sessionWebhook, body, {
     headers: {
       'x-acs-dingtalk-access-token': token,
       'Content-Type': 'application/json',
@@ -98,7 +95,7 @@ export async function sendTextMessage(
     };
   }
 
-  const resp = await axios.post(sessionWebhook, body, {
+  const resp = await dingtalkHttp.post(sessionWebhook, body, {
     headers: {
       'x-acs-dingtalk-access-token': token,
       'Content-Type': 'application/json',
@@ -133,7 +130,7 @@ export async function sendLinkMessage(
     },
   };
 
-  const resp = await axios.post(sessionWebhook, body, {
+  const resp = await dingtalkHttp.post(sessionWebhook, body, {
     headers: {
       'x-acs-dingtalk-access-token': token,
       'Content-Type': 'application/json',

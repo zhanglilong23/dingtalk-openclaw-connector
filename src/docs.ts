@@ -3,9 +3,9 @@
  * 支持读写钉钉在线文档（文档、表格等）
  */
 
-import axios from 'axios';
 import type { DingtalkConfig } from './types/index.ts';
 import { getAccessToken, DINGTALK_API } from './utils/index.ts';
+import { dingtalkHttp } from './utils/http-client.ts';
 
 // ============ 类型定义 ============
 
@@ -54,7 +54,7 @@ export class DingtalkDocsClient {
       const headers = await this.getHeaders();
       this.log?.info?.(`[DingTalk][Docs] 获取文档信息: spaceId=${spaceId}, docId=${docId}`);
 
-      const resp = await axios.get(
+      const resp = await dingtalkHttp.get(
         `${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/docs/${docId}`,
         { headers, timeout: 10_000 },
       );
@@ -88,9 +88,9 @@ export class DingtalkDocsClient {
         return null;
       }
 
-      const resp = await axios.get(
-        `${DINGTALK_API}/v2.0/wiki/nodes/${nodeId}`,
-        { headers, params: { operatorId }, timeout: 15_000 },
+      const resp = await dingtalkHttp.get(
+        `${DINGTALK_API}/v2.0/wiki/nodes/${nodeId}/content`,
+        { headers, params: { operatorId }, timeout: 30_000 },
       );
 
       const node = resp.data?.node || resp.data;
@@ -153,7 +153,7 @@ export class DingtalkDocsClient {
         index,
       };
 
-      await axios.post(
+      await dingtalkHttp.post(
         `${DINGTALK_API}/v1.0/doc/documents/${docId}/blocks/root/children`,
         body,
         { headers, timeout: 10_000 },
@@ -189,7 +189,7 @@ export class DingtalkDocsClient {
         docType: 'alidoc',
       };
 
-      const resp = await axios.post(
+      const resp = await dingtalkHttp.post(
         `${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/docs`,
         body,
         { headers, timeout: 10_000 },
@@ -232,7 +232,7 @@ export class DingtalkDocsClient {
       const body: any = { keyword, maxResults: 20 };
       if (spaceId) body.spaceId = spaceId;
 
-      const resp = await axios.post(
+      const resp = await dingtalkHttp.post(
         `${DINGTALK_API}/v1.0/doc/docs/search`,
         body,
         { headers, timeout: 10_000 },
@@ -269,7 +269,7 @@ export class DingtalkDocsClient {
       const params: any = { maxResults: 50 };
       if (parentId) params.parentDentryId = parentId;
 
-      const resp = await axios.get(
+      const resp = await dingtalkHttp.get(
         `${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/dentries`,
         { headers, params, timeout: 10_000 },
       );

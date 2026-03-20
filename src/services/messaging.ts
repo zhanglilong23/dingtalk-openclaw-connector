@@ -3,12 +3,9 @@
  * 支持 AI Card 流式响应、普通消息、主动消息
  */
 
-import axios from "axios";
 import type { DingtalkConfig } from "../types/index.ts";
 import { DINGTALK_API, getAccessToken, getOapiAccessToken } from "../utils/index.ts";
-
-// 🔧 禁用 axios 代理，防止 HTTP 代理导致 HTTPS 请求失败
-axios.defaults.proxy = false;
+import { dingtalkHttp, dingtalkOapiHttp } from "../utils/http-client.ts";
 import { createLoggerFromConfig } from "../utils/logger.ts";
 import {
   processLocalImages,
@@ -83,7 +80,7 @@ export async function sendMarkdownMessage(
     body.at = { atUserIds: [options.atUserId], isAtAll: false };
 
   return (
-    await axios.post(sessionWebhook, body, {
+    await dingtalkHttp.post(sessionWebhook, body, {
       headers: {
         "x-acs-dingtalk-access-token": token,
         "Content-Type": "application/json",
@@ -107,7 +104,7 @@ export async function sendTextMessage(
     body.at = { atUserIds: [options.atUserId], isAtAll: false };
 
   return (
-    await axios.post(sessionWebhook, body, {
+    await dingtalkHttp.post(sessionWebhook, body, {
       headers: {
         "x-acs-dingtalk-access-token": token,
         "Content-Type": "application/json",
@@ -231,7 +228,7 @@ export async function sendNormalToUser(
       `发送单聊消息: userIds=${userIdArray.join(",")}, msgType=${msgType}`,
     );
 
-    const resp = await axios.post(
+    const resp = await dingtalkHttp.post(
       `${DINGTALK_API}/v1.0/robot/oToMessages/batchSend`,
       body,
       {
@@ -298,7 +295,7 @@ export async function sendNormalToGroup(
       `发送群聊消息: openConversationId=${openConversationId}, msgType=${msgType}`,
     );
 
-    const resp = await axios.post(
+    const resp = await dingtalkHttp.post(
       `${DINGTALK_API}/v1.0/robot/groupMessages/send`,
       body,
       {
@@ -945,7 +942,7 @@ async function sendProactiveInternal(
       `发送${isUser ? '单聊' : '群聊'}消息：${isUser ? 'userIds=' : 'openConversationId='}${targetId}`,
     );
 
-    const resp = await axios.post(webhookUrl, body, {
+    const resp = await dingtalkHttp.post(webhookUrl, body, {
       headers: {
         "x-acs-dingtalk-access-token": token,
         "Content-Type": "application/json",
