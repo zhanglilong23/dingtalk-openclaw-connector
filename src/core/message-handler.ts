@@ -18,8 +18,6 @@
 import type { ClawdbotConfig, RuntimeEnv, HistoryEntry } from "openclaw/plugin-sdk";
 import type { ResolvedDingtalkAccount, DingtalkConfig } from "../types/index.ts";
 import { 
-  isMessageProcessed, 
-  markMessageProcessed, 
   buildSessionContext,
   getAccessToken,
   getOapiAccessToken,
@@ -982,8 +980,8 @@ export async function handleDingTalkMessageInternal(params: HandleMessageParams)
       SessionKey: sessionKey,  // ✅ 使用手动匹配的 sessionKey
       AccountId: accountId,
       ChatType: sessionContext.chatType,
-      GroupSubject: isDirect ? undefined : data.conversationId,
-      SenderName: senderId,
+      GroupSubject: isDirect ? undefined : data.conversationTitle,
+      SenderName: senderName,
       SenderId: senderId,
       Provider: "dingtalk" as const,
       Surface: "dingtalk" as const,
