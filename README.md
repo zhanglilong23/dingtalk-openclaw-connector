@@ -39,6 +39,38 @@
   ```
   预期输出：`✓ Gateway is running on http://127.0.0.1:18789`
 
+### ⚠️ 版本兼容性要求
+
+**重要**：dingtalk-connector v0.8.4+ 需要 **OpenClaw SDK v2026.3.23-2 或更高版本**。
+
+| dingtalk-connector 版本 | 最低 OpenClaw SDK 版本 | 说明 |
+|------------------------|----------------------|------|
+| v0.8.4+ | v2026.3.23-2+ | 使用新版 SDK API，支持更完善的路由和会话管理 |
+| v0.8.3 及以下 | v2026.3.x | 兼容旧版 SDK |
+
+**如何检查版本**：
+```bash
+# 检查 OpenClaw 版本
+openclaw --version
+
+# 检查插件版本
+openclaw plugins list
+```
+
+**如何升级**：
+```bash
+# 升级 OpenClaw 到最新版本
+npm install -g openclaw@latest
+
+# 或使用 yarn
+yarn global add openclaw@latest
+```
+
+**版本不兼容时的表现**：
+- 插件加载时会显示详细的错误提示
+- 提示信息会包含升级命令和降级方案
+- 插件会自动停止加载，不影响其他插件
+
 ### 2. 钉钉企业账号
 
 - 你需要一个钉钉企业账号来创建企业内部应用
