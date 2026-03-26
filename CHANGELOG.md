@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 🐛 **媒体下载代理控制统一** - 修复 `src/core/message-handler.ts` 中图片/文件下载时代理配置与 HTTP 客户端不一致的问题，确保所有媒体下载请求统一遵循代理控制策略  
   **Unified proxy control for media downloads** - Fixed inconsistent proxy configuration for image/file downloads; all media download requests now follow the unified proxy control policy
 
+- 🐛 **多账号消息去重误判** - 修复多账号（多机器人）场景下，同一条群消息 @多个机器人时，第二个机器人因去重缓存未按账号隔离，误将消息判定为重复而跳过处理的问题。`checkAndMarkDingtalkMessage` 的去重 key 现在带有 `accountId` 前缀，不同机器人账号的去重缓存完全隔离  
+  **Multi-account message deduplication false positive** - Fixed an issue where a group message mentioning multiple bots caused the second bot to skip processing due to a shared deduplication cache. The deduplication key now includes an `accountId` prefix, fully isolating each bot's cache
+
 ## [0.8.6] - 2026-03-24
 
 ### 改进 / Improvements

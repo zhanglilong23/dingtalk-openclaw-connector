@@ -20,6 +20,10 @@ This release focuses on two critical fixes: **account configuration compatibilit
   修复 `src/core/message-handler.ts` 中图片/文件下载时代理配置与 HTTP 客户端不一致的问题，确保所有媒体下载请求统一遵循代理控制策略。  
   Fixed inconsistent proxy configuration for image/file downloads in `src/core/message-handler.ts`; all media download requests now follow the unified proxy control policy.
 
+- **多账号消息去重误判修复 / Multi-account message deduplication false positive fix**  
+  修复多账号（多机器人）场景下，同一条群消息 @多个机器人时，第二个机器人因消息去重缓存未按账号隔离，误将自己收到的消息判定为重复而跳过处理的问题。现在 `checkAndMarkDingtalkMessage` 的去重 key 带有 `accountId` 前缀，不同机器人账号的去重缓存完全隔离。  
+  Fixed a false positive in multi-account (multi-bot) scenarios where a group message mentioning multiple bots caused the second bot to incorrectly skip processing, because the deduplication cache was not scoped per account. The deduplication key in `checkAndMarkDingtalkMessage` now includes an `accountId` prefix, fully isolating each bot's deduplication cache.
+
 ## 📥 安装升级 / Installation & Upgrade
 
 ```bash
