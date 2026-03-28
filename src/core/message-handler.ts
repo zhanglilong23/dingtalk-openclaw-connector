@@ -752,7 +752,7 @@ export async function handleDingTalkMessageInternal(params: HandleMessageParams)
   // ===== 图片下载到本地文件 =====
   const imageLocalPaths: string[] = [];
   
-  log?.info?.(`处理消息: accountId=${accountId}, sender=${senderName}, text=${content.text.slice(0, 50)}...`);
+  log?.info?.(`处理消息: accountId=${accountId}, data= ${JSON.stringify(data, null, 2)}, sender=${senderName}, text=${content.text.slice(0, 50)}...`);
   
   // 处理 imageUrls（来自富文本消息）
   for (let i = 0; i < content.imageUrls.length; i++) {

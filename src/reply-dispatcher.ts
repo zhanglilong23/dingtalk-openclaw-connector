@@ -470,10 +470,10 @@ export function createDingtalkReplyDispatcher(params: CreateDingtalkReplyDispatc
 
         // 流式模式：使用 AI Card
         if (info?.kind === "block" && streamingEnabled) {
-          if (!currentCardTarget) {
-            log.info(`[DingTalk][deliver] block 响应，AI Card 不存在，尝试创建...`);
-            await startStreaming();
-          }
+          // 只有当 AI Card 已存在时才更新，不主动新建。
+          // 多 block 响应场景下，onIdle 会在每个 block 结束后关闭 Card（currentCardTarget = null），
+          // 若此时再调用 startStreaming() 新建 Card，每个 block 都会产生独立气泡（issue #369）。
+          // 正确行为：block 内容由 onPartialReply 实时流式更新，final 时统一 finishAICard。
           if (currentCardTarget) {
             accumulatedText += text;
             log.info(`[DingTalk][deliver] 流式更新 AI Card，累积文本长度=${accumulatedText.length}`);
@@ -486,33 +486,10 @@ export function createDingtalkReplyDispatcher(params: CreateDingtalkReplyDispatc
               );
             } catch (streamErr: any) {
               log.error(`[DingTalk][deliver] ❌ streamAICard 失败：${streamErr.message}`);
-              // ✅ 流式更新失败，发送兜底消息并降级
               await sendFallbackErrorMessage('sendMessage', streamErr.message);
             }
           } else {
-            log.warn(`[DingTalk][deliver] ⚠️ AI Card 创建失败，降级到非流式发送`);
-            // 降级逻辑：如果 AI Card 创建失败，直接发送普通消息
-            try {
-              for (const chunk of core.channel.text.chunkTextWithMode(
-                text,
-                textChunkLimit,
-                chunkMode
-              )) {
-                await sendMessage(
-                  account.config as DingtalkConfig,
-                  sessionWebhook,
-                  chunk,
-                  {
-                    useMarkdown: true,
-                    log: params.runtime.log,
-                  }
-                );
-              }
-              log.info(`[DingTalk][deliver] ✅ 降级发送成功`);
-            } catch (error: any) {
-              log.error(`[DingTalk][deliver] ❌ 降级发送失败：${error.message}`);
-              await sendFallbackErrorMessage('sendMessage', error.message);
-            }
+            log.info(`[DingTalk][deliver] block 响应，AI Card 不存在，跳过（内容将合并到 final）`);
           }
           return;
         }

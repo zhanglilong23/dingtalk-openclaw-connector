@@ -464,30 +464,41 @@ export interface AudioInfo {
 
 /**
  * 提取音频时长
+ *
+ * 使用 fluent-ffmpeg 的 ffprobe API，与 extractVideoMetadata 保持一致，
+ * 完全避免直接调用 child_process，消除安全扫描误报。
  */
 async function extractAudioDuration(filePath: string, log?: any): Promise<number | null> {
   try {
-    // 使用 ffprobe 提取音频时长
-    const { exec } = await import('child_process');
+    const ffmpeg = require('fluent-ffmpeg');
+
+    // 优先使用 @ffprobe-installer/ffprobe 提供的固定路径
+    try {
+      const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+      if (ffprobeInstaller?.path) {
+        ffmpeg.setFfprobePath(ffprobeInstaller.path);
+      }
+    } catch {
+      // @ffprobe-installer/ffprobe 未安装（optionalDependency），使用系统 ffprobe
+    }
+
     return new Promise((resolve) => {
-      exec(
-        `ffprobe -v error -show_entries format=duration -of json "${filePath}"`,
-        (error: any, stdout: string) => {
-          if (error) {
-            log?.warn?.(`ffprobe 执行失败: ${error.message}`);
-            resolve(null);
-            return;
-          }
-          try {
-            const data = JSON.parse(stdout);
-            const duration = data.format?.duration ? Math.round(parseFloat(data.format.duration) * 1000) : 0;
-            resolve(duration);
-          } catch (err) {
-            log?.warn?.(`解析 ffprobe 输出失败`);
-            resolve(null);
-          }
-        },
-      );
+      ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
+        if (err) {
+          log?.warn?.(`ffprobe 执行失败: ${err.message}`);
+          resolve(null);
+          return;
+        }
+        try {
+          const duration = metadata.format?.duration
+            ? Math.round(parseFloat(metadata.format.duration) * 1000)
+            : 0;
+          resolve(duration);
+        } catch (parseErr) {
+          log?.warn?.(`解析 ffprobe 输出失败`);
+          resolve(null);
+        }
+      });
     });
   } catch (err: any) {
     log?.warn?.(`提取音频时长失败: ${err.message}`);
