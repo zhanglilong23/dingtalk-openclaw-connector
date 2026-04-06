@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="DingTalk" src="docs/images/dingtalk.svg" width="72" height="72" />
+  <img alt="DingTalk" src="https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-openclaw-connector/main/docs/images/dingtalk.svg" width="72" height="72" />
   <h1>钉钉 OpenClaw 官方连接器</h1>
   <p>将钉钉机器人连接到 OpenClaw Gateway，支持 AI Card 流式响应和会话管理</p>
   
@@ -167,13 +167,13 @@ openclaw plugins list
 1. 访问 [钉钉开放平台](https://open-dev.dingtalk.com/)
 2. 点击 **"应用开发"**
 
-![创建应用](docs/images/image-1.png)
+![创建应用](https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-openclaw-connector/main/docs/images/image-1.png)
 
 #### 3.2 添加机器人能力
 
 1. 在应用详情页，点击 一键创建OpenClaw机器人应用
 
-![创建OpenClaw机器人应用](docs/images/image-2.png)
+![创建OpenClaw机器人应用](https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-openclaw-connector/main/docs/images/image-2.png)
 
 #### 3.3 获取凭证
 
@@ -181,9 +181,9 @@ openclaw plugins list
 2. 复制你的 **AppKey**（Client ID）
 3. 复制你的 **AppSecret**（Client Secret）
 
-![完成创建](docs/images/image-3.png)
+![完成创建](https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-openclaw-connector/main/docs/images/image-3.png)
 
-![获取凭证](docs/images/image-4.png)
+![获取凭证](https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-openclaw-connector/main/docs/images/image-4.png)
 
 > ⚠️ **重要**：Client ID和 Client Secret是机器人的唯一凭证。请合理保存。
 
