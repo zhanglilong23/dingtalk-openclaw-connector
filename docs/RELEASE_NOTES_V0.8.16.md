@@ -36,5 +36,5 @@ openclaw plugins install @dingtalk-real-ai/dingtalk-connector@0.8.15-beta.1
 ---
 
 **发布日期 / Release Date**：2026-04-16  
-**版本号 / Version**：v0.8.15-beta.1  
+**版本号 / Version**：v0.8.16 
 **兼容性 / Compatibility**：OpenClaw Gateway 0.4.0+
