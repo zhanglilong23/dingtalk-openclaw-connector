@@ -10,12 +10,16 @@ import type {
   DingtalkConfigSchema,
   DingtalkGroupSchema,
   DingtalkAccountConfigSchema,
+  DynamicAgentCreationSchema,
   z,
 } from "../config/schema.ts";
 
 export type DingtalkConfig = z.infer<typeof DingtalkConfigSchema>;
 export type DingtalkGroupConfig = z.infer<typeof DingtalkGroupSchema>;
 export type DingtalkAccountConfig = z.infer<typeof DingtalkAccountConfigSchema>;
+export type DynamicAgentCreationConfig = z.infer<
+  typeof DynamicAgentCreationSchema
+>;
 
 export type DingtalkConnectionMode = "stream";
 
@@ -23,7 +27,9 @@ export type DingtalkDefaultAccountSelectionSource =
   | "explicit-default"
   | "mapped-default"
   | "fallback";
-export type DingtalkAccountSelectionSource = "explicit" | DingtalkDefaultAccountSelectionSource;
+export type DingtalkAccountSelectionSource =
+  | "explicit"
+  | DingtalkDefaultAccountSelectionSource;
 
 export type ResolvedDingtalkAccount = {
   accountId: string;

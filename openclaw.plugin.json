@@ -5,9 +5,7 @@
   "description": "DingTalk (钉钉) messaging channel via Stream mode with AI Card streaming",
   "author": "DingTalk Real Team",
   "main": "index.ts",
-  "channels": [
-    "dingtalk-connector"
-  ],
+  "channels": ["dingtalk-connector"],
   "configSchema": {
     "type": "object",
     "additionalProperties": true
@@ -45,11 +43,7 @@
                 "properties": {
                   "source": {
                     "type": "string",
-                    "enum": [
-                      "env",
-                      "file",
-                      "exec"
-                    ]
+                    "enum": ["env", "file", "exec"]
                   },
                   "provider": {
                     "type": "string",
@@ -60,11 +54,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "source",
-                  "provider",
-                  "id"
-                ],
+                "required": ["source", "provider", "id"],
                 "additionalProperties": false
               }
             ]
@@ -78,11 +68,7 @@
           "dmPolicy": {
             "default": "open",
             "type": "string",
-            "enum": [
-              "open",
-              "pairing",
-              "allowlist"
-            ]
+            "enum": ["open", "pairing", "allowlist"]
           },
           "allowFrom": {
             "type": "array",
@@ -100,11 +86,7 @@
           "groupPolicy": {
             "default": "open",
             "type": "string",
-            "enum": [
-              "open",
-              "allowlist",
-              "disabled"
-            ]
+            "enum": ["open", "allowlist", "disabled"]
           },
           "groupAllowFrom": {
             "type": "array",
@@ -170,10 +152,7 @@
                 },
                 "groupSessionScope": {
                   "type": "string",
-                  "enum": [
-                    "group",
-                    "group_sender"
-                  ]
+                  "enum": ["group", "group_sender"]
                 }
               },
               "additionalProperties": false
@@ -220,10 +199,7 @@
           "groupSessionScope": {
             "default": "group",
             "type": "string",
-            "enum": [
-              "group",
-              "group_sender"
-            ]
+            "enum": ["group", "group_sender"]
           },
           "asyncMode": {
             "type": "boolean"
@@ -236,6 +212,25 @@
           },
           "debug": {
             "type": "boolean"
+          },
+          "dynamicAgentCreation": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "workspaceTemplate": {
+                "type": "string"
+              },
+              "agentDirTemplate": {
+                "type": "string"
+              },
+              "maxAgents": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "additionalProperties": false
           },
           "accounts": {
             "type": "object",
@@ -268,11 +263,7 @@
                       "properties": {
                         "source": {
                           "type": "string",
-                          "enum": [
-                            "env",
-                            "file",
-                            "exec"
-                          ]
+                          "enum": ["env", "file", "exec"]
                         },
                         "provider": {
                           "type": "string",
@@ -283,22 +274,14 @@
                           "minLength": 1
                         }
                       },
-                      "required": [
-                        "source",
-                        "provider",
-                        "id"
-                      ],
+                      "required": ["source", "provider", "id"],
                       "additionalProperties": false
                     }
                   ]
                 },
                 "dmPolicy": {
                   "type": "string",
-                  "enum": [
-                    "open",
-                    "pairing",
-                    "allowlist"
-                  ]
+                  "enum": ["open", "pairing", "allowlist"]
                 },
                 "allowFrom": {
                   "type": "array",
@@ -315,11 +298,7 @@
                 },
                 "groupPolicy": {
                   "type": "string",
-                  "enum": [
-                    "open",
-                    "allowlist",
-                    "disabled"
-                  ]
+                  "enum": ["open", "allowlist", "disabled"]
                 },
                 "groupAllowFrom": {
                   "type": "array",
@@ -384,10 +363,7 @@
                       },
                       "groupSessionScope": {
                         "type": "string",
-                        "enum": [
-                          "group",
-                          "group_sender"
-                        ]
+                        "enum": ["group", "group_sender"]
                       }
                     },
                     "additionalProperties": false
@@ -431,10 +407,7 @@
                 },
                 "groupSessionScope": {
                   "type": "string",
-                  "enum": [
-                    "group",
-                    "group_sender"
-                  ]
+                  "enum": ["group", "group_sender"]
                 },
                 "asyncMode": {
                   "type": "boolean"
@@ -491,6 +464,11 @@
         "channels.dingtalk-connector.accounts": {
           "label": "Accounts",
           "help": "多账号配置，每个 key 是账号 ID"
+        },
+        "channels.dingtalk-connector.dynamicAgentCreation": {
+          "label": "Dynamic Agent Creation",
+          "help": "为每个 DM 用户自动创建独立 Agent（含独立工作空间、记忆、身份）",
+          "advanced": true
         }
       }
     }

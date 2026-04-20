@@ -1,7 +1,10 @@
 import { normalizeAccountId } from "../sdk/helpers.ts";
 import { z } from "zod";
 export { z };
-import { buildSecretInputSchema, hasConfiguredSecretInput } from "../secret-input.ts";
+import {
+  buildSecretInputSchema,
+  hasConfiguredSecretInput,
+} from "../secret-input.ts";
 
 const DmPolicySchema = z.enum(["open", "pairing", "allowlist"]);
 const GroupPolicySchema = z.enum(["open", "allowlist", "disabled"]);
@@ -19,9 +22,7 @@ const ToolPolicySchema = z
  * - "group" (default): one session per group chat
  * - "group_sender": one session per (group + sender)
  */
-const GroupSessionScopeSchema = z
-  .enum(["group", "group_sender"])
-  .optional();
+const GroupSessionScopeSchema = z.enum(["group", "group_sender"]).optional();
 
 /**
  * Dingtalk tools configuration.
@@ -35,6 +36,8 @@ const DingtalkToolsConfigSchema = z
   .strict()
   .optional();
 
+export { DynamicAgentCreationSchema };
+
 export const DingtalkGroupSchema = z
   .object({
     requireMention: z.boolean().optional(),
@@ -45,6 +48,20 @@ export const DingtalkGroupSchema = z
     groupSessionScope: GroupSessionScopeSchema,
   })
   .strict();
+
+/**
+ * Dynamic agent creation configuration.
+ * When enabled, creates a unique agent instance with its own workspace for each DM user.
+ */
+const DynamicAgentCreationSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    workspaceTemplate: z.string().optional(),
+    agentDirTemplate: z.string().optional(),
+    maxAgents: z.number().int().positive().optional(),
+  })
+  .strict()
+  .optional();
 
 const DingtalkSharedConfigShape = {
   dmPolicy: DmPolicySchema.optional(),
@@ -102,16 +119,30 @@ export const DingtalkConfigBaseSchema = z
     separateSessionByConversation: z.boolean().optional().default(true),
     sharedMemoryAcrossConversations: z.boolean().optional().default(false),
     groupSessionScope: GroupSessionScopeSchema.optional().default("group"),
+    // Dynamic agent creation (per-user agent isolation)
+    dynamicAgentCreation: DynamicAgentCreationSchema,
     // Multi-account configuration
-    accounts: z.record(z.string(), DingtalkAccountConfigSchema.optional()).optional(),
+    accounts: z
+      .record(z.string(), DingtalkAccountConfigSchema.optional())
+      .optional(),
   })
   .strict();
 
-export const DingtalkConfigSchema = DingtalkConfigBaseSchema.superRefine((value, ctx) => {
+export const DingtalkConfigSchema = DingtalkConfigBaseSchema.superRefine(
+  (value, ctx) => {
     const defaultAccount = value.defaultAccount?.trim();
-    if (defaultAccount && value.accounts && Object.keys(value.accounts).length > 0) {
+    if (
+      defaultAccount &&
+      value.accounts &&
+      Object.keys(value.accounts).length > 0
+    ) {
       const normalizedDefaultAccount = normalizeAccountId(defaultAccount);
-      if (!Object.prototype.hasOwnProperty.call(value.accounts, normalizedDefaultAccount)) {
+      if (
+        !Object.prototype.hasOwnProperty.call(
+          value.accounts,
+          normalizedDefaultAccount,
+        )
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["defaultAccount"],
@@ -132,7 +163,7 @@ export const DingtalkConfigSchema = DingtalkConfigBaseSchema.superRefine((value,
         });
       }
     }
-    
+
     // Validate groupPolicy and groupAllowFrom consistency
     if (value.groupPolicy === "allowlist") {
       const groupAllowFrom = value.groupAllowFrom ?? [];
@@ -145,4 +176,5 @@ export const DingtalkConfigSchema = DingtalkConfigBaseSchema.superRefine((value,
         });
       }
     }
-  });
+  },
+);
