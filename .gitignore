@@ -16,3 +16,9 @@ openclaw/
 .aone_copilot/
 AGENTS.md
 .DS_Store
+
+# Claude
+.claude/
+MEMORY.md
+memory-bank/
+memory/
