@@ -5,10 +5,33 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { resolveDingtalkAccount } from "./config/accounts.ts";
+import { resolveDingtalkAccount, listDingtalkAccountIds } from "./config/accounts.ts";
 import { DingtalkDocsClient } from "./docs.ts";
 import { sendProactive } from "./services/messaging.ts";
-import { getUnionId } from "./utils/utils-legacy.ts";
+import { getUnionId, recallEmotionReply } from "./utils/utils-legacy.ts";
+import { finishAICard } from "./services/messaging/card.ts";
+import type { AICardInstance } from "./services/messaging/card.ts";
+
+/**
+ * Warn when accountId is not explicitly provided and multiple accounts exist.
+ * Returns the resolved account (unchanged), but emits a log warning so that
+ * callers (typically AI agents) learn to pass accountId explicitly.
+ */
+function warnIfAccountIdMissing(
+  cfg: any,
+  accountId: unknown,
+  method: string,
+  log?: any,
+): void {
+  if (accountId) return;
+  const allIds = listDingtalkAccountIds(cfg);
+  if (allIds.length > 1) {
+    log?.warn?.(
+      `[Gateway][${method}] accountId not specified but ${allIds.length} accounts configured (${allIds.join(", ")}). ` +
+      `Falling back to default account. To use the correct bot, pass accountId explicitly.`,
+    );
+  }
+}
 
 /**
  * 注册所有 Gateway Methods
@@ -35,6 +58,7 @@ export function registerGatewayMethods(api: OpenClawPluginApi) {
     const cfg = loadConfig();
     try {
       const { userId, userIds, content, msgType, title, useAICard, fallbackToNormal, accountId } = params || {};
+      warnIfAccountIdMissing(cfg, accountId, 'sendToUser', log);
       const account = resolveDingtalkAccount({ cfg, accountId });
       if (!account.config?.clientId) {
         return respond(false, { error: 'DingTalk not configured' });
@@ -62,7 +86,7 @@ export function registerGatewayMethods(api: OpenClawPluginApi) {
         fallbackToNormal: fallbackToNormal !== false,
       });
 
-      respond(result.ok, result);
+      respond(result.ok, { ...result, usedAccountId: account.accountId });
     } catch (err: any) {
       log?.error?.(`[Gateway][sendToUser] 错误: ${err.message}`);
       respond(false, { error: err.message });
@@ -86,6 +110,7 @@ export function registerGatewayMethods(api: OpenClawPluginApi) {
     const cfg = loadConfig();
     try {
       const { openConversationId, content, msgType, title, useAICard, fallbackToNormal, accountId } = params || {};
+      warnIfAccountIdMissing(cfg, accountId, 'sendToGroup', log);
       const account = resolveDingtalkAccount({ cfg, accountId });
       if (!account.config?.clientId) {
         return respond(false, { error: 'DingTalk not configured' });
@@ -107,7 +132,7 @@ export function registerGatewayMethods(api: OpenClawPluginApi) {
         fallbackToNormal: fallbackToNormal !== false,
       });
 
-      respond(result.ok, result);
+      respond(result.ok, { ...result, usedAccountId: account.accountId });
     } catch (err: any) {
       log?.error?.(`[Gateway][sendToGroup] 错误: ${err.message}`);
       console.error(err);
@@ -121,8 +146,9 @@ export function registerGatewayMethods(api: OpenClawPluginApi) {
     try {
       const { target, content, message, msgType, title, useAICard, fallbackToNormal, accountId } = params || {};
       const actualContent = content || message;
+      warnIfAccountIdMissing(cfg, accountId, 'send', log);
       const account = resolveDingtalkAccount({ cfg, accountId });
-      log?.info?.(`[Gateway][send] 收到请求: target=${target}, contentLen=${actualContent?.length}`);
+      log?.info?.(`[Gateway][send] 收到请求: target=${target}, contentLen=${typeof actualContent === 'string' ? actualContent.length : 0}, accountId=${account.accountId}`);
 
       if (!account.config?.clientId) {
         return respond(false, { error: 'DingTalk not configured' });
@@ -376,6 +402,111 @@ export function registerGatewayMethods(api: OpenClawPluginApi) {
       });
     } catch (err: any) {
       log?.error?.(`[Gateway][status] 错误: ${err.message}`);
+      respond(false, { error: err.message });
+    }
+  });
+
+  // ============ 故障恢复类 ============
+
+  /**
+   * 修复卡住的 AI Card 和/或残留的🤔表情标签
+   *
+   * 使用场景：Gateway 重启导致流式响应中断，AI Card 停留在"思考中"状态，
+   * 或用户消息上的🤔表情标签未被自动撤回。
+   *
+   * @example 修复卡住的 AI Card
+   * ```typescript
+   * await gateway.call('dingtalk-connector.fixStuckCards', {
+   *   cardInstanceId: 'card_1713600000000_abc12345',
+   *   content: '（回复中断，请重新提问）'
+   * });
+   * ```
+   *
+   * @example 撤回残留的🤔表情
+   * ```typescript
+   * await gateway.call('dingtalk-connector.fixStuckCards', {
+   *   msgId: 'msgXXX',
+   *   conversationId: 'cidXXX'
+   * });
+   * ```
+   *
+   * @example 同时修复两者
+   * ```typescript
+   * await gateway.call('dingtalk-connector.fixStuckCards', {
+   *   cardInstanceId: 'card_1713600000000_abc12345',
+   *   msgId: 'msgXXX',
+   *   conversationId: 'cidXXX'
+   * });
+   * ```
+   */
+  api.registerGatewayMethod('dingtalk-connector.fixStuckCards', async ({ context, params, respond }) => {
+    const { loadConfig } = await import('openclaw/plugin-sdk/config-runtime');
+    const cfg = loadConfig();
+    try {
+      const { cardInstanceId, content, msgId, conversationId, accountId } = (params || {}) as any;
+      const account = resolveDingtalkAccount({ cfg, accountId: accountId as string | undefined });
+
+      if (!account.config?.clientId) {
+        return respond(false, { error: 'DingTalk not configured' });
+      }
+
+      if (!cardInstanceId && !msgId) {
+        return respond(false, {
+          error: 'At least one of cardInstanceId or msgId is required',
+          usage: {
+            cardInstanceId: '(optional) AI Card outTrackId, found in logs like "outTrackId=card_..."',
+            content: '(optional) Final card content, defaults to "（回复中断，请重新提问）"',
+            msgId: '(optional) Message ID for emotion recall, found in logs like "msgId=..."',
+            conversationId: '(optional) Required together with msgId for emotion recall',
+          },
+        });
+      }
+
+      const results: { card?: { ok: boolean; error?: string }; emotion?: { ok: boolean; error?: string } } = {};
+
+      // 1. 修复卡住的 AI Card
+      if (cardInstanceId) {
+        try {
+          const { getAccessToken } = await import('./utils/utils-legacy.ts');
+          const token = await getAccessToken(account.config);
+          const card: AICardInstance = {
+            cardInstanceId: String(cardInstanceId),
+            accessToken: token,
+            tokenExpireTime: Date.now() + 2 * 60 * 60 * 1000,
+            inputingStarted: true,
+          };
+          const finalContent = String(content || '（回复中断，请重新提问）');
+          await finishAICard(card, finalContent, account.config, log);
+          results.card = { ok: true };
+          log?.info?.(`[Gateway][fixStuckCards] AI Card 修复成功: ${cardInstanceId}`);
+        } catch (err: any) {
+          results.card = { ok: false, error: err.message };
+          log?.error?.(`[Gateway][fixStuckCards] AI Card 修复失败: ${err.message}`);
+        }
+      }
+
+      // 2. 撤回残留的🤔表情
+      if (msgId && conversationId) {
+        try {
+          await recallEmotionReply(account.config, {
+            msgId,
+            conversationId,
+            robotCode: account.config.clientId,
+          }, log);
+          results.emotion = { ok: true };
+          log?.info?.(`[Gateway][fixStuckCards] 表情撤回成功: msgId=${msgId}`);
+        } catch (err: any) {
+          results.emotion = { ok: false, error: err.message };
+          log?.error?.(`[Gateway][fixStuckCards] 表情撤回失败: ${err.message}`);
+        }
+      } else if (msgId && !conversationId) {
+        results.emotion = { ok: false, error: 'conversationId is required together with msgId' };
+      }
+
+      const allOk = Object.values(results).every(r => r.ok);
+      respond(allOk, results);
+    } catch (err: any) {
+      log?.error?.(`[Gateway][fixStuckCards] 错误: ${err.message}`);
       respond(false, { error: err.message });
     }
   });

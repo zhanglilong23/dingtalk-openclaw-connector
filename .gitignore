@@ -8,6 +8,7 @@ build/
 *.egg
 node_modules/
 package-lock.json
+coverage/
 
 # IDE
 .idea/
@@ -16,6 +17,8 @@ openclaw/
 .aone_copilot/
 AGENTS.md
 .DS_Store
+plans/
+scripts/
 
 # Claude
 .claude/
