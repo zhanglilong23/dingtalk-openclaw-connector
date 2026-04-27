@@ -287,6 +287,9 @@ export async function monitorSingleAccount(
       // 重连成功，向框架报告 connected: true
       onStatusChange?.({ connected: true, lastConnectedAt: Date.now() });
 
+      // 重连后重新挂载诊断监听器（新 socket 需要重新绑定）
+      setupDiagListeners();
+
       logger.info(`✅ 重连成功 (socket 状态=${client.socket?.readyState})`);
     } catch (err: any) {
       reconnectAttempts++;
@@ -300,18 +303,17 @@ export async function monitorSingleAccount(
   }
 
   /** 监听 pong 响应（更新 socket 可用时间） */
-  function setupPongListener() {
+  // ===== 诊断：设置事件监听器（必须在连接建立后调用，否则 socket 为 null）=====
+  function setupDiagListeners() {
+    // pong 监听
     client.socket?.on("pong", () => {
       lastSocketAvailableTime = Date.now();
       process.stderr.write(`[DIAG][${accountId}] 🏓 收到 PONG 响应\n`);
       logger.debug(`收到 PONG 响应`);
     });
-  }
 
-  /** 监听 WebSocket message 事件，收到 disconnect 消息时立即触发重连 */
-  function setupMessageListener() {
+    // 原始 message 监听（诊断用，记录每个 WS 帧）
     client.socket?.on("message", (data: any) => {
-      // ===== 诊断日志：记录每一个收到的原始 WebSocket 帧 =====
       const rawPreview = typeof data === 'string'
         ? data.slice(0, 500)
         : String(data).slice(0, 500);
@@ -322,40 +324,30 @@ export async function monitorSingleAccount(
         if (msg.type === "SYSTEM" && msg.headers?.topic === "disconnect") {
           process.stderr.write(`[DIAG][${accountId}] ⚠️ 收到 SYSTEM disconnect，触发重连\n`);
           if (!isStopped && !isReconnecting) {
-            // 立即重连，不退避
             doReconnect(true).catch((err) => {
               logger.error(`[${accountId}] 重连失败：${err.message}`);
             });
           }
         }
       } catch (e) {
-        // 忽略解析错误
         process.stderr.write(`[DIAG][${accountId}] RAW WS message parse error: ${e}\n`);
       }
     });
-  }
 
-  /** 监听 WebSocket close 事件，服务端主动断开时立即触发重连 */
-  function setupCloseListener() {
+    // close 监听：服务端主动断开时立即重连
     client.socket?.on("close", (code, reason) => {
-      logger.info(
-        `WebSocket close: code=${code}, reason=${reason || "未知"}, isStopped=${isStopped}`,
-      );
-
-      // 连接断开时，向框架报告 connected: false
+      process.stderr.write(`[DIAG][${accountId}] WebSocket close: code=${code}, reason=${reason || "未知"}, isStopped=${isStopped}\n`);
+      logger.info(`WebSocket close: code=${code}, reason=${reason || "未知"}, isStopped=${isStopped}`);
       onStatusChange?.({ connected: false });
-
-      if (isStopped) {
-        return;
-      }
-
-      // 立即重连，不退避
+      if (isStopped) return;
       setTimeout(() => {
         doReconnect(true).catch((err) => {
           logger.error(`重连失败：${err.message}`);
         });
       }, 0);
     });
+
+    process.stderr.write(`[DIAG][${accountId}] 诊断监听器已挂载, 事件数: ${client.socket?.listenerCount('message')} message, ${client.socket?.listenerCount('pong')} pong, ${client.socket?.listenerCount('close')} close\n`);
   }
 
   /**
@@ -412,10 +404,12 @@ export async function monitorSingleAccount(
           return;
         }
 
-        // 【发送原生 Ping】仅发送，不刷新时间戳；
-        // 只有收到 pong 响应时才更新 lastSocketAvailableTime（见 setupPongListener）
+        // 【发送原生 Ping】ping 发送成功即视为 socket 可用，更新时间戳。
+        // 原 upstream 逻辑只等 pong，但钉钉服务器不回复 pong，导致 20s 超时断连循环。
+        // 同时收到任何业务消息或 pong 时也会更新时间戳（见 setupDiagListeners / 消息回调）。
         try {
           client.socket?.ping();
+          lastSocketAvailableTime = Date.now();
           process.stderr.write(`[DIAG][${accountId}] 💓 发送 PING, lastSocketAvailable=${Math.round((Date.now() - lastSocketAvailableTime) / 1000)}s ago\n`);
           logger.debug(`💓 发送 PING 心跳成功`);
         } catch (err: any) {
@@ -459,10 +453,7 @@ export async function monitorSingleAccount(
     logger.debug(`Connection 已停止`);
   }
 
-  // 初始化：设置所有事件监听器
-  setupPongListener();
-  setupMessageListener();
-  setupCloseListener();
+  // 注意：message/pong/close 监听器必须在 client.connect() 之后通过 setupDiagListeners() 挂载
 
   return new Promise<void>(async (resolve, reject) => {
     // Handle abort signal
@@ -506,6 +497,7 @@ export async function monitorSingleAccount(
       process.stderr.write(`[DIAG][${accountId}] 🔔 TOPIC_ROBOT 回调触发！receivedCount=${receivedCount + 1}, messageId=${res.headers?.messageId}\n`);
       receivedCount++;
       lastMessageTime = Date.now();
+      lastSocketAvailableTime = Date.now(); // 收到业务消息也视为 socket 可用
 
       // 收到消息时，向框架报告 lastInboundAt（用于 UI 显示 "Last inbound"）
       onStatusChange?.({ lastInboundAt: Date.now() });
@@ -643,7 +635,8 @@ export async function monitorSingleAccount(
     try {
       await client.connect();
       process.stderr.write(`[DIAG][${accountId}] ✅ WebSocket 连接成功！socket.readyState=${client.socket?.readyState}\n`);
-      process.stderr.write(`[DIAG][${accountId}] socket 事件监听器数量: ${client.socket?.listenerCount('message')} message, ${client.socket?.listenerCount('pong')} pong\n`);
+      // 在连接建立后挂载诊断监听器（此时 socket 已存在）
+      setupDiagListeners();
       logger.info(`Connected to DingTalk Stream successfully`);
       logger.info(`PID: ${process.pid}`);
       logger.info(
