@@ -303,6 +303,7 @@ export async function monitorSingleAccount(
   function setupPongListener() {
     client.socket?.on("pong", () => {
       lastSocketAvailableTime = Date.now();
+      process.stderr.write(`[DIAG][${accountId}] 🏓 收到 PONG 响应\n`);
       logger.debug(`收到 PONG 响应`);
     });
   }
@@ -310,9 +311,16 @@ export async function monitorSingleAccount(
   /** 监听 WebSocket message 事件，收到 disconnect 消息时立即触发重连 */
   function setupMessageListener() {
     client.socket?.on("message", (data: any) => {
+      // ===== 诊断日志：记录每一个收到的原始 WebSocket 帧 =====
+      const rawPreview = typeof data === 'string'
+        ? data.slice(0, 500)
+        : String(data).slice(0, 500);
+      process.stderr.write(`[DIAG][${accountId}] RAW WS message: ${rawPreview}\n`);
       try {
         const msg = JSON.parse(data);
+        process.stderr.write(`[DIAG][${accountId}] parsed WS msg type=${msg.type}, topic=${msg.headers?.topic}, messageId=${msg.headers?.messageId}\n`);
         if (msg.type === "SYSTEM" && msg.headers?.topic === "disconnect") {
+          process.stderr.write(`[DIAG][${accountId}] ⚠️ 收到 SYSTEM disconnect，触发重连\n`);
           if (!isStopped && !isReconnecting) {
             // 立即重连，不退避
             doReconnect(true).catch((err) => {
@@ -322,6 +330,7 @@ export async function monitorSingleAccount(
         }
       } catch (e) {
         // 忽略解析错误
+        process.stderr.write(`[DIAG][${accountId}] RAW WS message parse error: ${e}\n`);
       }
     });
   }
@@ -407,6 +416,7 @@ export async function monitorSingleAccount(
         // 只有收到 pong 响应时才更新 lastSocketAvailableTime（见 setupPongListener）
         try {
           client.socket?.ping();
+          process.stderr.write(`[DIAG][${accountId}] 💓 发送 PING, lastSocketAvailable=${Math.round((Date.now() - lastSocketAvailableTime) / 1000)}s ago\n`);
           logger.debug(`💓 发送 PING 心跳成功`);
         } catch (err: any) {
           logger.warn(`发送 PING 失败：${err.message}`);
@@ -486,10 +496,14 @@ export async function monitorSingleAccount(
         `统计：收到=${receivedCount}, 处理=${processedCount}, ` +
           `丢失=${receivedCount - processedCount}, 距上次消息=${timeSinceLastMessage}s`,
       );
+      process.stderr.write(`[DIAG][${accountId}] 定期状态: received=${receivedCount}, processed=${processedCount}, lastMsg=${timeSinceLastMessage}s ago, socketState=${client.socket?.readyState}, lastSocketAvailable=${Math.round((now - lastSocketAvailableTime) / 1000)}s ago, isReconnecting=${isReconnecting}, isStopped=${isStopped}\n`);
     }, 60000); // 每分钟输出一次
+    process.stderr.write(`[DIAG][${accountId}] ✅ TOPIC_ROBOT 回调监听器已注册, 统计定时器已启动\n`);
 
     // Register message handler
+    process.stderr.write(`[DIAG][${accountId}] 准备注册 TOPIC_ROBOT 回调监听器...\n`);
     client.registerCallbackListener(TOPIC_ROBOT, async (res: any) => {
+      process.stderr.write(`[DIAG][${accountId}] 🔔 TOPIC_ROBOT 回调触发！receivedCount=${receivedCount + 1}, messageId=${res.headers?.messageId}\n`);
       receivedCount++;
       lastMessageTime = Date.now();
 
@@ -628,6 +642,8 @@ export async function monitorSingleAccount(
     // Connect to DingTalk Stream
     try {
       await client.connect();
+      process.stderr.write(`[DIAG][${accountId}] ✅ WebSocket 连接成功！socket.readyState=${client.socket?.readyState}\n`);
+      process.stderr.write(`[DIAG][${accountId}] socket 事件监听器数量: ${client.socket?.listenerCount('message')} message, ${client.socket?.listenerCount('pong')} pong\n`);
       logger.info(`Connected to DingTalk Stream successfully`);
       logger.info(`PID: ${process.pid}`);
       logger.info(
